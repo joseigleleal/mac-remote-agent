@@ -11,7 +11,7 @@ import argparse
 import time
 from datetime import datetime
 
-from mac import chrome, spotify, telegram, volumen
+from mac import chrome, servicio, spotify, telegram, volumen
 from mac.config import lista
 from mac.interprete import Pedido, interpretar
 
@@ -19,7 +19,10 @@ AYUDA = """Hola 👋 Soy tu Mac. Puedo:
 · ver qué perfiles de Chrome tienes abiertos: «hola mac, qué perfiles hay»
 · buscar y reproducir en Spotify: «pon bad bunny en spotify» o «en mi perfil personal pon karol g»
 · el volumen: «sube el volumen», «baja el volumen 20», «volumen al 30», «silencia», «quita el silencio»
+· el bot: «cuánto consumes» (/estado), «pausa» y «prende» (/pausar, /reanudar), «apágate del todo» (/apagar)
 El «hola mac» es opcional. Si no me dices el perfil, te pregunto con botones."""
+
+EN_PAUSA = ("estado", "reanudar", "apagar", "ayuda")  # lo único que atiende en pausa
 
 
 def log(texto: str) -> None:
@@ -58,7 +61,22 @@ class Bot:
     def mensaje(self, chat, texto: str) -> None:
         pedido = interpretar(texto)
         log(f"pedido: «{texto[:200]}» → {pedido.accion} {pedido.datos}")
-        if pedido.accion == "perfiles":
+        if servicio.pausado() and pedido.accion not in EN_PAUSA:
+            self.decir(chat, "⏸️ Estoy en pausa. Dime «prende» para volver.")
+        elif pedido.accion == "estado":
+            self.decir(chat, servicio.recursos())
+        elif pedido.accion == "pausar":
+            servicio.pausar()
+            self.decir(chat, "⏸️ En pausa: sigo escuchando pero no hago nada hasta que me digas «prende».")
+        elif pedido.accion == "reanudar":
+            servicio.reanudar()
+            self.decir(chat, "▶️ De vuelta. ¿Qué hago?")
+        elif pedido.accion == "apagar":
+            botones = telegram.teclado([[("⏻ Sí, apagar del todo", "apagar:si"), ("Cancelar", "apagar:no")]])
+            self.decir(chat, "¿Me apago del todo? Ojo: después no podré escucharte; para prenderme hay que hacerlo "
+                             "desde la Mac (scripts/bot.sh prender). Si solo quieres que no haga nada, di «pausa».",
+                       botones)
+        elif pedido.accion == "perfiles":
             self.decir(chat, texto_perfiles())
         elif pedido.accion == "volumen":
             try:
@@ -107,6 +125,13 @@ class Bot:
         log(f"botón: {q.get('data')}")
         telegram.responder_boton(q["id"])
         dato, mid = q.get("data", ""), (q.get("message") or {}).get("message_id")
+        if dato == "apagar:no":
+            telegram.editar(chat, mid, "Sigo encendido.")
+            return
+        if dato == "apagar:si":
+            telegram.editar(chat, mid, "⏻ Me apago. Para prenderme: en la Mac, scripts/bot.sh prender.")
+            log("apagado total pedido por Telegram")
+            servicio.apagar()
         if not dato.startswith("perfil:"):
             return
         pedido = self.pendiente.pop(str(chat), None)

@@ -68,6 +68,46 @@ class Interprete(unittest.TestCase):
         self.assertEqual(interpretar("hola mac, ¿cómo estás?").accion, "ayuda")
 
 
+class Servicio(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+        self.tmp = Path(tempfile.mkdtemp())
+        for p in (mock.patch.dict(os.environ, {"TELEGRAM_CHAT_ID": "111"}), mock.patch.object(bot, "log"),
+                  mock.patch.object(bot.servicio, "PAUSA", self.tmp / "pausado")):
+            p.start()
+            self.addCleanup(p.stop)
+        p = mock.patch.object(bot.telegram, "enviar")
+        self.enviar = p.start()
+        self.addCleanup(p.stop)
+
+    def test_frases(self):
+        for frase, accion in {"cuánto consumes": "estado", "/estado": "estado", "hola mac, pausa": "pausar",
+                              "apágate": "pausar", "préndete": "reanudar", "/reanudar": "reanudar",
+                              "apágate del todo": "apagar", "/apagar": "apagar",
+                              "apaga el sonido": "volumen"}.items():
+            self.assertEqual(interpretar(frase).accion, accion, frase)
+
+    def test_en_pausa_no_hace_nada_hasta_prender(self):
+        b = bot.Bot()
+        with mock.patch.object(bot.spotify, "reproducir") as reproducir, \
+                mock.patch.object(bot.chrome, "resolver", return_value=PERSONAL):
+            b.atender(mensaje(111, "pausa"))
+            b.atender(mensaje(111, "pon bad bunny"))
+            reproducir.assert_not_called()
+            self.assertIn("pausa", self.enviar.call_args.args[1])
+            b.atender(mensaje(111, "prende"))
+            b.atender(mensaje(111, "pon bad bunny"))
+            reproducir.assert_called_once()
+
+    def test_apagar_pide_confirmacion(self):
+        with mock.patch.object(bot.servicio, "apagar") as apagar:
+            bot.Bot().atender(mensaje(111, "/apagar"))
+            apagar.assert_not_called()  # primero pregunta
+        datos = [b["callback_data"] for fila in self.enviar.call_args.args[2]["inline_keyboard"] for b in fila]
+        self.assertEqual(datos, ["apagar:si", "apagar:no"])
+
+
 class Spotify(unittest.TestCase):
     def setUp(self):
         for p in (mock.patch.dict(os.environ, {"TELEGRAM_CHAT_ID": "111", "CHROME_PERFILES_PERMITIDOS": ""}),
