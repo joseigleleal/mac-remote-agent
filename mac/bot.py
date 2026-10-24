@@ -11,13 +11,14 @@ import argparse
 import time
 from datetime import datetime
 
-from mac import (apps, chrome, claude_aviso, claude_puente, comandos, login, servicio, spotify, telegram, volumen,
+from mac import (apps, chrome, claude_aviso, claude_puente, comandos, login, servicio, spotify, telegram, volumen, web,
                  whatsapp)
 from mac.config import DATA_DIR, lista
 from mac.interprete import Pedido, interpretar
 
 AYUDA = """Hola 👋 Soy tu Mac. Puedo:
 · ver qué perfiles de Chrome tienes abiertos: «hola mac, qué perfiles hay»
+· páginas: «abre youtube (en personal)», luego «busca …» dentro de ella; en YouTube «pon el primero»
 · buscar y reproducir en Spotify: «pon bad bunny en spotify» o «en mi perfil personal pon karol g»
 · Claude Code: «qué haces» (/claude); «avisos claude on» = modo fuera: te aviso, me respondes respondiendo al aviso
   o con «claude: …», y sus preguntas llegan con botones. «avisos claude off» al volver a la Mac
@@ -38,6 +39,7 @@ OFFSET = DATA_DIR / "offset"  # último update atendido: un reinicio nunca repit
 # Menú de Telegram (al escribir «/»). También se le puede hablar con frases: ver AYUDA.
 MENU = [("estado", "Cuánto consume el bot y cómo está la Mac"), ("consumo", "Qué está consumiendo más"),
         ("apps", "Apps abiertas y su consumo"), ("cerrar", "Cerrar una app: /cerrar pycharm"),
+        ("abre", "Abrir una página: /abre youtube"),
         ("perfiles", "Perfiles de Chrome abiertos"), ("spotify", "Buscar y reproducir: /spotify bad bunny"),
         ("musica", "Spotify: /musica pausa · sigue · siguiente · anterior"),
         ("login", "Volver a iniciar sesión: /login <sitio>"),
@@ -67,6 +69,7 @@ class Bot:
         except (OSError, ValueError):
             self.offset = None
         self.pendiente: dict[str, Pedido] = {}  # chat → pedido que espera que se elija el perfil
+        self.ctx: web.Contexto | None = None    # la pestaña con la que se está conversando («busca…» va ahí)
 
     def atender(self, update: dict) -> None:
         self.offset = update["update_id"] + 1
@@ -115,6 +118,19 @@ class Bot:
         log(f"pedido: «{texto[:200]}» → {pedido.accion} {pedido.datos}")
         if servicio.pausado() and pedido.accion not in EN_PAUSA:
             self.decir(chat, "⏸️ Estoy en pausa. Dime «prende» para volver.")
+        elif pedido.accion == "abrir":
+            self.abrir(chat, pedido, self.perfil_pedido(pedido, texto))
+        elif pedido.accion == "buscar":
+            if self.ctx and self.ctx.vigente() and self.ctx.sitio != "spotify":
+                self.web(chat, lambda: web.buscar(self.ctx, pedido.datos["consulta"]))
+            else:  # sin página abierta: como antes, a Spotify
+                self.spotify(chat, Pedido("spotify", {"consulta": pedido.datos["consulta"]}),
+                             self.perfil_pedido(pedido, texto))
+        elif pedido.accion == "primero":
+            if self.ctx and self.ctx.vigente():
+                self.web(chat, lambda: web.primero(self.ctx))
+            else:
+                self.decir(chat, "Primero ábreme una página y busca algo: «abre youtube», «busca …».")
         elif pedido.accion.startswith("wa_"):
             try:
                 if pedido.accion == "wa_chats":
@@ -185,6 +201,32 @@ class Bot:
             self.spotify(chat, pedido, chrome.resolver(quitar_consulta(texto, pedido)))
         else:
             self.decir(chat, AYUDA)
+
+    def perfil_pedido(self, pedido: Pedido, texto: str) -> chrome.Perfil | None:
+        """El perfil dicho al final («… en personal») o en cualquier parte del texto."""
+        return chrome.resolver(pedido.datos.get("perfil") or "") or chrome.resolver(texto)
+
+    def web(self, chat, accion) -> None:
+        try:
+            self.decir(chat, accion())
+        except chrome.ChromeError as e:
+            self.decir(chat, f"⚠️ {e}")
+
+    def abrir(self, chat, pedido: Pedido, perfil: chrome.Perfil | None) -> None:
+        if perfil is None:
+            abiertos = chrome.abiertos()
+            if len(abiertos) != 1:
+                self.preguntar_perfil(chat, pedido, abiertos)
+                return
+            perfil = abiertos[0]
+        if not chrome.permitido(perfil.carpeta):
+            self.decir(chat, f"No uso el perfil {perfil.etiqueta}: no está en CHROME_PERFILES_PERMITIDOS.")
+            return
+
+        def accion():
+            texto, self.ctx = web.abrir(perfil.carpeta, pedido.datos["sitio"])
+            return f"{texto} (perfil {perfil.etiqueta})"
+        self.web(chat, accion)
 
     def spotify(self, chat, pedido: Pedido, perfil: chrome.Perfil | None) -> None:
         """Con perfil, reproduce. Sin perfil: si hay uno solo abierto lo usa; si hay varios, pregunta con botones."""
@@ -296,6 +338,8 @@ class Bot:
         telegram.editar(chat, mid, f"Perfil: {perfil.etiqueta}")
         if pedido.accion == "spotify":
             self.spotify(chat, pedido, perfil)
+        elif pedido.accion == "abrir":
+            self.abrir(chat, pedido, perfil)
 
     def correr(self) -> None:
         if not lista("TELEGRAM_CHAT_ID"):

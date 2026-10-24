@@ -74,7 +74,7 @@ def reproducir(carpeta: str, consulta: str) -> str:
         abierta = "en la pestaña de Spotify que ya tenías"
     else:
         chrome.abrir(carpeta, url_busqueda(consulta))
-        pestana = esperar(lambda: chrome.buscar_pestana(carpeta, DOMINIO), segundos=15)
+        pestana = esperar(lambda: chrome.buscar_pestana_tolerante(carpeta, DOMINIO), segundos=15)
         if not pestana:
             return "Abrí Spotify, pero no encuentro la pestaña para darle play. Tócalo tú, por favor."
         abierta = "en una pestaña nueva"

@@ -158,6 +158,15 @@ def asignar_perfiles(lista_v: list[Ventana], sesiones: dict[str, bytes]) -> None
         v.perfil = mejor if mejor and puntos[mejor] > 0 else None
 
 
+def buscar_pestana_tolerante(carpeta: str, contiene: str) -> tuple[int, int] | None:
+    """Como `buscar_pestana`, pero un error momentáneo (Chrome abriendo una ventana: «conexión no válida», -609)
+    cuenta como «todavía no está»: sirve para esperar una pestaña recién abierta."""
+    try:
+        return buscar_pestana(carpeta, contiene)
+    except ChromeError:
+        return None
+
+
 def buscar_pestana(carpeta: str, contiene: str) -> tuple[int, int] | None:
     """(id de ventana, número de pestaña desde 1) de la primera pestaña del perfil cuya URL contiene `contiene`."""
     for v in ventanas():

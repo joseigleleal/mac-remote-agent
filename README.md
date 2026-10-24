@@ -26,6 +26,8 @@ comandos de una lista que tú defines. Los comandos también aparecen en el men�
 | «chats» · «exporta <nombre>» · «exporta 5» · «excluye <nombre>» | WhatsApp de la Mac para entrenar tu «clon»: lista tus chats uno a uno con más mensajes tuyos y exporta **solo tus mensajes** (con el mensaje anterior del otro como contexto, sin teléfonos, correos ni enlaces) a `data/whatsapp/`. Sin grupos; los excluidos nunca se exportan |
 | «qué haces» · «qué dijiste» · `/claude` | Última acción y último mensaje de la sesión de Claude Code (lee el transcript) |
 | «avisos claude on / off» · `/avisos_claude` | Modo fuera con Claude Code: avisos, responderle y contestar sus preguntas desde Telegram (ver abajo) |
+| «abre youtube (en personal)» · «busca youtube» · `/abre …` | Abre la página (por nombre conocido, dirección o, si no, búsqueda en Google) en ese perfil; sin perfil, pregunta con botones. Reutiliza la pestaña si ya existe y queda como **la pestaña de la conversación** |
+| «busca …» (con una página abierta) · «pon el primero» | Busca dentro de esa página (dirección de búsqueda del sitio o su buscador) y, en YouTube, reproduce el primer resultado. Sin página abierta en los últimos 30 min, «busca …» va a Spotify |
 | «hola mac, en mi perfil personal …» | Usa ese perfil (por su apodo en `.env`, su nombre o su carpeta) |
 | «sube el volumen» · «baja el volumen 20» · «volumen al 30» · «silencia» · «quita el silencio» · `/volumen 50` | Cambia el volumen de la Mac (de a 10 si no se dice cuánto) y dice cómo quedó |
 
@@ -84,6 +86,7 @@ compara y deduce de quién es cada ventana.
 | `mac/whatsapp.py` | Lee la base local de la app de WhatsApp (copia temporal, solo lectura): chats uno a uno, excluidos, pares (contexto, respuesta) limpios | `chats`, `pares`, `exportar`, `excluir` |
 | `mac/claude_puente.py` | Hooks `Stop` (avisa y espera tu mensaje; con mensaje, sale con código 2 y Claude Code despierta a Claude con él), `PreToolUse` de `AskUserQuestion` (opciones con botones → `updatedInput.answers`) y `Notification`; buzón en `data/claude/` que escribe el bot | `hook_stop`, `hook_pregunta`, `que_haces`, `dejar_mensaje` |
 | `mac/claude_aviso.py` | Hook de Claude Code (eventos `Stop` y `Notification`): manda por Telegram el comienzo de la última respuesta o el aviso de que necesita permiso o una respuesta | `texto_aviso`, `ultima_respuesta` |
+| `mac/web.py` | Sitios conocidos y sus búsquedas, abrir en un perfil (reutiliza la pestaña), buscar en la página (plantilla o buscador visible), primer video de YouTube | `abrir`, `buscar`, `primero`, `Contexto` |
 | `mac/terminal.py` | Escribe un comando en una terminal visible: IDE de JetBrains con teclado simulado (Esc → ⌥F12 → ⌘T → comando → Enter) o iTerm por su AppleScript | `escribir` |
 | `mac/servicio.py` | Consumo (`ps`, `memory_pressure`), pausa (archivo `data/pausado`) y apagado total (`launchctl disable` + `bootout`) | `recursos`, `pausar`, `reanudar`, `apagar` |
 | `scripts/bot.sh` | Prender, apagar, reiniciar, estado y log desde la Mac | `prender`, `apagar`, `reiniciar`, `estado`, `log` |

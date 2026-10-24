@@ -4,7 +4,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 
-ACCIONES = ("wa_chats", "wa_exporta", "wa_excluye", "claude", "avisos", "login", "musica", "estado", "pausar", "reanudar", "apagar", "comando", "detener", "comandos", "apps", "consumo", "cerrar",
+ACCIONES = ("abrir", "buscar", "primero", "wa_chats", "wa_exporta", "wa_excluye", "claude", "avisos", "login", "musica", "estado", "pausar", "reanudar", "apagar", "comando", "detener", "comandos", "apps", "consumo", "cerrar",
             "perfiles", "volumen", "spotify", "ayuda")
 
 VERBOS_MUSICA = r"\b(busca\w*|busque\w*|pon|ponme|ponle|pongas|reproduc\w*|toca|tocame|escuch\w*|play)\b"
@@ -149,9 +149,34 @@ def pedido_apps(original: str, t: str) -> Pedido | None:
     return None
 
 
+PERFIL_FINAL = r"\s+en\s+(?:mi\s+|el\s+)?(?:perfil\s+)?(?:de\s+)?(?P<perfil>[\w.-]+)$"
+
+
+def pedido_web(t: str) -> Pedido | None:
+    """«abre youtube (en personal)», «busca youtube» (sitio conocido = abrir), «busca X» (dentro de la página abierta),
+    «pon el primero» (YouTube)."""
+    from mac.web import sitio_conocido  # aquí: web importa este módulo
+    if re.search(r"\b(pon|ponme|reproduc\w*|dale|abre)\s+(?:al?\s+|el\s+|la\s+)?primer[oa]?\b", t):
+        return Pedido("primero")
+    m = re.match(r"^(?:abre\w*|abrir|entra (?:a|en)|ve a|anda a|vamos a|busca\w*|buscar)\s+"
+                 r"(?:la pagina (?:de )?|el sitio (?:de )?|la web (?:de )?|en\s+)?(?P<x>.+)$", t)
+    if not m or re.search(r"\b(pon|ponme|reproduc\w*|spotify)\b", t) and not t.startswith("abre"):
+        return None
+    x, perfil = m.group("x"), ""
+    p = re.search(PERFIL_FINAL, x)
+    if p:
+        x, perfil = x[:p.start()], p.group("perfil")
+    if t.startswith(("busca", "buscar")) and not sitio_conocido(x):
+        return Pedido("buscar", {"consulta": x, "perfil": perfil})
+    return Pedido("abrir", {"sitio": x, "perfil": perfil})
+
+
 def interpretar(texto: str) -> Pedido:
     original = quitar_saludo(texto)
     t = normalizar(original)
+    web = pedido_web(t)
+    if web:
+        return web
     m = re.match(r"^/?(exporta\w*|excluye|excluir)\s+(?:(?:el|la|los|las|mi|mis|chats?|de|con|del)\s+)*(.+)$", t)
     if m:
         accion = "wa_exporta" if m.group(1).startswith("export") else "wa_excluye"

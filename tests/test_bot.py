@@ -86,6 +86,24 @@ class Interprete(unittest.TestCase):
         self.assertEqual(interpretar("/avisos_claude on").datos, {"activar": True})
         self.assertEqual(interpretar("/avisos_claude").datos, {"activar": None})  # solo consulta
 
+    def test_paginas(self):
+        self.assertEqual(interpretar("abre youtube en personal").datos, {"sitio": "youtube", "perfil": "personal"})
+        self.assertEqual(interpretar("busca youtube").accion, "abrir")       # sitio conocido: se abre
+        self.assertEqual(interpretar("busca la canción de shakira").accion, "buscar")
+        self.assertEqual(interpretar("busca bad bunny en spotify").accion, "spotify")
+        self.assertEqual(interpretar("pon el primero").accion, "primero")
+
+    def test_buscar_sin_pagina_abierta_va_a_spotify(self):
+        b = bot.Bot()
+        with mock.patch.dict(os.environ, {"TELEGRAM_CHAT_ID": "111"}), mock.patch.object(bot, "log"), \
+                mock.patch.object(b, "spotify") as spotify, mock.patch.object(bot.web, "buscar") as buscar, \
+                mock.patch.object(bot.chrome, "resolver", return_value=None):
+            b.atender(mensaje(111, "busca feid"))
+            spotify.assert_called_once()
+            b.ctx = bot.web.Contexto("Default", 1, 2, "youtube", __import__("time").time())
+            b.atender(mensaje(111, "busca feid", update_id=2))
+            buscar.assert_called_once()
+
     def test_otros_pedidos(self):
         self.assertEqual(interpretar("hola mac, qué perfiles hay").accion, "perfiles")
         self.assertEqual(interpretar("hola mac, ¿cómo estás?").accion, "ayuda")
