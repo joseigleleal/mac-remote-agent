@@ -11,14 +11,15 @@ import argparse
 import time
 from datetime import datetime
 
-from mac import chrome, spotify, telegram
+from mac import chrome, spotify, telegram, volumen
 from mac.config import lista
 from mac.interprete import Pedido, interpretar
 
 AYUDA = """Hola 👋 Soy tu Mac. Puedo:
 · ver qué perfiles de Chrome tienes abiertos: «hola mac, qué perfiles hay»
-· buscar y reproducir en Spotify: «hola mac, en mi perfil personal pon bad bunny en spotify»
-Si no me dices el perfil, te pregunto con botones."""
+· buscar y reproducir en Spotify: «pon bad bunny en spotify» o «en mi perfil personal pon karol g»
+· el volumen: «sube el volumen», «baja el volumen 20», «volumen al 30», «silencia», «quita el silencio»
+El «hola mac» es opcional. Si no me dices el perfil, te pregunto con botones."""
 
 
 def log(texto: str) -> None:
@@ -59,6 +60,15 @@ class Bot:
         log(f"pedido: «{texto[:200]}» → {pedido.accion} {pedido.datos}")
         if pedido.accion == "perfiles":
             self.decir(chat, texto_perfiles())
+        elif pedido.accion == "volumen":
+            try:
+                if pedido.datos["modo"] == "ver":
+                    nivel, mudo = volumen.estado()
+                    self.decir(chat, "🔇 Silenciado" if mudo else f"🔊 Volumen: {nivel} %")
+                else:
+                    self.decir(chat, volumen.ajustar(pedido.datos["modo"], pedido.datos.get("valor")))
+            except chrome.ChromeError as e:
+                self.decir(chat, f"⚠️ {e}")
         elif pedido.accion == "spotify":
             self.spotify(chat, pedido, chrome.resolver(quitar_consulta(texto, pedido)))
         else:

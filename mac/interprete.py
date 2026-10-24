@@ -4,7 +4,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 
-ACCIONES = ("perfiles", "spotify", "ayuda")
+ACCIONES = ("perfiles", "volumen", "spotify", "ayuda")
 
 VERBOS_MUSICA = r"\b(busca\w*|busque\w*|pon|ponme|ponle|pongas|reproduc\w*|toca|tocame|escuch\w*|play)\b"
 # Lo que no es parte de la búsqueda: el perfil, el sitio y el «y dale play» del final.
@@ -49,12 +49,36 @@ def consulta_musica(t: str) -> str:
     return resto
 
 
+def pedido_volumen(t: str) -> Pedido | None:
+    """«sube el volumen», «baja el volumen 20», «volumen al 30», «silencia», «quita el silencio»."""
+    if re.search(r"\b(quita\w* (el )?silencio|desmute\w*|activa\w* el (sonido|audio))\b", t):
+        return Pedido("volumen", {"modo": "activar"})
+    if re.search(r"\b(silencia\w*|mute\w*|mutea\w*|silencio)\b", t):
+        return Pedido("volumen", {"modo": "silenciar"})
+    if not re.search(r"\b(volumen|sonido)\b", t):
+        return None
+    numero = re.search(r"\b(\d{1,3})\b", t)
+    valor = int(numero.group(1)) if numero else None
+    if re.search(r"\b(sube\w*|subir|mas alto|aumenta\w*)\b", t):
+        return Pedido("volumen", {"modo": "subir", "valor": valor})
+    if re.search(r"\b(baja\w*|bajar|mas bajo|disminu\w*)\b", t):
+        return Pedido("volumen", {"modo": "bajar", "valor": valor})
+    if valor is not None:
+        return Pedido("volumen", {"modo": "fijar", "valor": valor})
+    return Pedido("volumen", {"modo": "ver"})
+
+
 def interpretar(texto: str) -> Pedido:
     t = normalizar(quitar_saludo(texto))
     if t in ("/start", "/ayuda", "ayuda", "") or t.startswith("/help"):
         return Pedido("ayuda")
     if t.startswith("/perfiles") or re.search(r"\bperfiles\b", t):
         return Pedido("perfiles")
+    if t.startswith("/volumen"):
+        return pedido_volumen("volumen " + t[len("/volumen"):]) or Pedido("ayuda")
+    volumen = pedido_volumen(t)
+    if volumen:
+        return volumen
     if t.startswith("/spotify"):
         return Pedido("spotify", {"consulta": t[len("/spotify"):].strip()})
     if "spotify" in t or re.search(VERBOS_MUSICA, t):

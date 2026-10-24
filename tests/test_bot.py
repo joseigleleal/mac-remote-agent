@@ -43,10 +43,25 @@ class Interprete(unittest.TestCase):
             "hola mac, en mi perfil personal pon bad bunny en spotify": "bad bunny",
             "hola mac dale play a karol g": "karol g",
             "/spotify feid": "feid",
+            "pon bad bunny en spotify": "bad bunny",  # sin «hola mac»
         }
         for frase, consulta in casos.items():
             pedido = interpretar(frase)
             self.assertEqual((pedido.accion, pedido.datos["consulta"]), ("spotify", consulta), frase)
+
+    def test_volumen(self):
+        casos = {
+            "hola mac sube el volumen": {"modo": "subir", "valor": None},
+            "baja el volumen 20": {"modo": "bajar", "valor": 20},
+            "pon el volumen al 30": {"modo": "fijar", "valor": 30},
+            "silencia la mac": {"modo": "silenciar"},
+            "quita el silencio": {"modo": "activar"},
+            "cómo está el volumen": {"modo": "ver"},
+            "/volumen 50": {"modo": "fijar", "valor": 50},
+        }
+        for frase, datos in casos.items():
+            pedido = interpretar(frase)
+            self.assertEqual((pedido.accion, pedido.datos), ("volumen", datos), frase)
 
     def test_otros_pedidos(self):
         self.assertEqual(interpretar("hola mac, qué perfiles hay").accion, "perfiles")

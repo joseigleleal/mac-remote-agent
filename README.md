@@ -19,12 +19,15 @@ spotify» y lo hace en tu Chrome, con tus sesiones ya iniciadas y en la pestaña
 | «hola mac, qué perfiles hay» · `/perfiles` | Lista los perfiles de Chrome abiertos (los permitidos) |
 | «hola mac, pon bad bunny en spotify» · `/spotify bad bunny` | Si no dices el perfil y hay varios abiertos, pregunta con botones. Busca en la pestaña de Spotify de ese perfil (sin recargarla) y reproduce el primer resultado; si no hay pestaña, la abre en ese perfil |
 | «hola mac, en mi perfil personal …» | Usa ese perfil (por su apodo en `.env`, su nombre o su carpeta) |
+| «sube el volumen» · «baja el volumen 20» · «volumen al 30» · «silencia» · «quita el silencio» · `/volumen 50` | Cambia el volumen de la Mac (de a 10 si no se dice cuánto) y dice cómo quedó |
+
+El «hola mac» es opcional: «pon bad bunny en spotify» funciona igual.
 
 ## Flujo
 
 ```
 Telegram ──▶ bot.py (long polling) ──▶ ¿chat autorizado? no → se ignora
-                                   └─▶ interprete.py: texto → acción de la lista (perfiles · spotify · ayuda)
+                                   └─▶ interprete.py: texto → acción de la lista (perfiles · volumen · spotify · ayuda)
                                           └─▶ ¿qué perfil? dicho en el texto · único abierto · si no, botones
                                                  └─▶ chrome.py: ventana del perfil → pestaña de Spotify
                                                         ├─ existe → spotify.py cambia a la búsqueda (sin recargar)
@@ -56,6 +59,7 @@ compara y deduce de quién es cada ventana.
 | `mac/interprete.py` | Texto → `Pedido(accion, datos)` con reglas (sin tildes, quita «hola mac», el perfil y el «dale play») | `interpretar`, `consulta_musica` |
 | `mac/chrome.py` | Perfiles, perfiles abiertos, ventana de cada perfil, buscar pestaña, ejecutar JavaScript, abrir URL en un perfil | `perfiles`, `abiertos`, `resolver`, `ventanas`, `asignar_perfiles`, `buscar_pestana`, `ejecutar_js`, `abrir` |
 | `mac/spotify.py` | Búsqueda y play en la web de Spotify | `reproducir`, `sonando` |
+| `mac/volumen.py` | Volumen y silencio de la Mac por AppleScript (`set volume`) | `estado`, `ajustar` |
 | `mac/telegram.py` | Cliente mínimo de la API de bots | `actualizaciones`, `enviar`, `editar`, `teclado` |
 | `mac/config.py` | `.env`, rutas y apodos de perfiles | `env`, `lista`, `alias_perfiles` |
 | `scripts/instalar_launchd.sh` | Lo deja corriendo siempre (arranca con la sesión, se relanza si se cae) | `desinstalar` para quitarlo |
