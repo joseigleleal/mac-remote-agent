@@ -75,7 +75,7 @@ compara y deduce de quién es cada ventana.
 | `mac/spotify.py` | Búsqueda y play en la web de Spotify, y los botones de la barra (play/pausa, siguiente, anterior) | `reproducir`, `controlar`, `sonando` |
 | `mac/volumen.py` | Volumen y silencio de la Mac por AppleScript (`set volume`) | `estado`, `ajustar` |
 | `mac/comandos.py` | Comandos de la lista permitida, sin shell, en segundo plano; registro en `data/comandos.json` para verlos y detenerlos | `ejecutar`, `detener`, `corriendo`, `resumen` |
-| `mac/apps.py` | Apps abiertas (System Events, con bundle id), consumo por app (`ps` agrupado por `/X.app/`) y cerrar por bundle id | `abiertas`, `consumo`, `resumen_mac`, `cerrar`, `buscar` |
+| `mac/apps.py` | Apps abiertas (System Events, con bundle id), consumo por app (memoria de `top`, que incluye la de la GPU como el Monitor de Actividad; CPU de `ps`; agrupado por `/X.app/`) y cerrar por bundle id | `abiertas`, `consumo`, `resumen_mac`, `cerrar`, `buscar` |
 | `mac/terminal.py` | Escribe un comando en una terminal visible: IDE de JetBrains con teclado simulado (Esc → ⌥F12 → ⌘T → comando → Enter) o iTerm por su AppleScript | `escribir` |
 | `mac/servicio.py` | Consumo (`ps`, `memory_pressure`), pausa (archivo `data/pausado`) y apagado total (`launchctl disable` + `bootout`) | `recursos`, `pausar`, `reanudar`, `apagar` |
 | `scripts/bot.sh` | Prender, apagar, reiniciar, estado y log desde la Mac | `prender`, `apagar`, `reiniciar`, `estado`, `log` |

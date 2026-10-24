@@ -53,9 +53,23 @@ def buscar(texto: str) -> list[App]:
     return exactas or [a for a in todas if t and (t in normalizar(a.nombre) or normalizar(a.nombre) in t)]
 
 
+def memoria() -> dict[int, float]:
+    """GB por proceso según `top` (la «Memoria» del Monitor de Actividad). Incluye la memoria de la GPU, que en los
+    chips de Apple es la misma RAM: el RSS de `ps` no la cuenta y un entrenamiento con MLX parecía usar 0,2 GB."""
+    r = subprocess.run(["top", "-l", "1", "-stats", "pid,mem"], capture_output=True, text=True, timeout=20)
+    unidades = {"B": 1 / 1024 ** 3, "K": 1 / 1024 ** 2, "M": 1 / 1024, "G": 1}
+    salida = {}
+    for linea in r.stdout.splitlines():
+        m = re.match(r"\s*(\d+)\s+([\d.]+)([BKMG])", linea)
+        if m:
+            salida[int(m.group(1))] = float(m.group(2)) * unidades[m.group(3)]
+    return salida
+
+
 def consumo(n: int = 6) -> list[tuple[str, float, float]]:
     """Las `n` apps (o procesos sueltos) que más consumen: (nombre, % CPU, GB de RAM), por RAM y luego CPU."""
-    r = subprocess.run(["ps", "-Ao", "pcpu=,rss=,comm="], capture_output=True, text=True)
+    gb = memoria()
+    r = subprocess.run(["ps", "-Ao", "pid=,pcpu=,comm="], capture_output=True, text=True)
     cpu, ram = defaultdict(float), defaultdict(float)
     for linea in r.stdout.splitlines():
         partes = linea.split(None, 2)
@@ -63,8 +77,8 @@ def consumo(n: int = 6) -> list[tuple[str, float, float]]:
             continue
         m = re.search(r"/([^/]+)\.app/", partes[2])
         nombre = m.group(1) if m else os.path.basename(partes[2])
-        cpu[nombre] += float(partes[0])
-        ram[nombre] += int(partes[1]) / 1024 ** 2
+        cpu[nombre] += float(partes[1])
+        ram[nombre] += gb.get(int(partes[0]), 0)
     orden = sorted(ram, key=lambda k: (ram[k], cpu[k]), reverse=True)
     return [(k, cpu[k], ram[k]) for k in orden[:n]]
 
