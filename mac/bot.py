@@ -11,9 +11,9 @@ import argparse
 import time
 from datetime import datetime
 
-from mac import chrome, telegram
+from mac import chrome, spotify, telegram
 from mac.config import lista
-from mac.interprete import interpretar
+from mac.interprete import Pedido, interpretar
 
 AYUDA = """Hola 👋 Soy tu Mac. Puedo:
 · ver qué perfiles de Chrome tienes abiertos: «hola mac, qué perfiles hay»
@@ -32,6 +32,7 @@ def autorizado(chat_id) -> bool:
 class Bot:
     def __init__(self):
         self.offset = None
+        self.pendiente: dict[str, Pedido] = {}  # chat → pedido que espera que se elija el perfil
 
     def atender(self, update: dict) -> None:
         self.offset = update["update_id"] + 1
@@ -49,16 +50,66 @@ class Bot:
         if texto:
             self.mensaje(chat, texto)
 
+    def decir(self, chat, texto: str, botones: dict | None = None) -> None:
+        log(f"respuesta: {texto[:200]}")
+        telegram.enviar(chat, texto, botones)
+
     def mensaje(self, chat, texto: str) -> None:
         pedido = interpretar(texto)
-        log(f"pedido: {pedido.accion} {pedido.datos}")
+        log(f"pedido: «{texto[:200]}» → {pedido.accion} {pedido.datos}")
         if pedido.accion == "perfiles":
-            telegram.enviar(chat, texto_perfiles())
+            self.decir(chat, texto_perfiles())
+        elif pedido.accion == "spotify":
+            self.spotify(chat, pedido, chrome.resolver(quitar_consulta(texto, pedido)))
         else:
-            telegram.enviar(chat, AYUDA)
+            self.decir(chat, AYUDA)
+
+    def spotify(self, chat, pedido: Pedido, perfil: chrome.Perfil | None) -> None:
+        """Con perfil, reproduce. Sin perfil: si hay uno solo abierto lo usa; si hay varios, pregunta con botones."""
+        consulta = pedido.datos.get("consulta")
+        if not consulta:
+            self.decir(chat, "¿Qué busco? Ej.: «hola mac, pon bad bunny en spotify».")
+            return
+        if perfil is None:
+            abiertos = chrome.abiertos()
+            if len(abiertos) != 1:
+                self.preguntar_perfil(chat, pedido, abiertos)
+                return
+            perfil = abiertos[0]
+        if not chrome.permitido(perfil.carpeta):
+            self.decir(chat, f"No uso el perfil {perfil.etiqueta}: no está en CHROME_PERFILES_PERMITIDOS.")
+            return
+        self.decir(chat, f"🎵 Busco «{consulta}» en Spotify, perfil {perfil.etiqueta}…")
+        try:
+            self.decir(chat, spotify.reproducir(perfil.carpeta, consulta))
+        except chrome.ChromeError as e:
+            self.decir(chat, f"⚠️ {e}")
+
+    def preguntar_perfil(self, chat, pedido: Pedido, abiertos: list[chrome.Perfil]) -> None:
+        if not abiertos:
+            self.decir(chat, "No hay perfiles de Chrome abiertos que pueda usar. Dime cuál: «en mi perfil …».")
+            return
+        self.pendiente[str(chat)] = pedido
+        botones = telegram.teclado([[(p.etiqueta, f"perfil:{p.carpeta}")] for p in abiertos])
+        self.decir(chat, "¿En qué perfil de Chrome?", botones)
 
     def boton(self, chat, q: dict) -> None:
+        log(f"botón: {q.get('data')}")
         telegram.responder_boton(q["id"])
+        dato, mid = q.get("data", ""), (q.get("message") or {}).get("message_id")
+        if not dato.startswith("perfil:"):
+            return
+        pedido = self.pendiente.pop(str(chat), None)
+        if not pedido:
+            telegram.editar(chat, mid, "Ese pedido ya no está pendiente. Pídemelo de nuevo.")
+            return
+        perfil = chrome.perfiles().get(dato[len("perfil:"):])
+        if not perfil:
+            telegram.editar(chat, mid, "Ese perfil ya no existe.")
+            return
+        telegram.editar(chat, mid, f"Perfil: {perfil.etiqueta}")
+        if pedido.accion == "spotify":
+            self.spotify(chat, pedido, perfil)
 
     def correr(self) -> None:
         if not lista("TELEGRAM_CHAT_ID"):
@@ -75,6 +126,12 @@ class Bot:
                     self.atender(u)
                 except Exception as e:  # un pedido que falla no tumba al bot
                     log(f"error atendiendo: {type(e).__name__}: {e}")
+
+
+def quitar_consulta(texto: str, pedido: Pedido) -> str:
+    """El texto sin lo que se va a buscar, para que «pon la canción de estudio» no elija el perfil «estudio» por error."""
+    consulta = pedido.datos.get("consulta") or ""
+    return texto.lower().replace(consulta, " ") if consulta else texto
 
 
 def texto_perfiles() -> str:

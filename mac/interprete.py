@@ -4,7 +4,17 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 
-ACCIONES = ("perfiles", "ayuda")
+ACCIONES = ("perfiles", "spotify", "ayuda")
+
+VERBOS_MUSICA = r"\b(busca\w*|busque\w*|pon|ponme|ponle|pongas|reproduc\w*|toca|tocame|escuch\w*|play)\b"
+# Lo que no es parte de la búsqueda: el perfil, el sitio y el «y dale play» del final.
+RELLENO = [
+    r"\b(entra\w*|abr\w*|ve|vete|usa\w*)?\s*(a|en)\s+(mi|el|la)?\s*perfil\b(\s+de)?\s+[\w.-]+(\s+de\s+chrome)?",
+    r"\b(en|de)\s+(la\s+)?(pestana|pagina|web)\s+de\s+spotify\b",
+    r"\b(en|por)\s+spotify\b", r"\bspotify\b",
+    r"\s+y\s+(le\s+)?(da|de|des|dale|dele|pon|pong|reproduc|toca)\w*(\s+play)?\b.*$",
+]
+PREFIJOS = r"^(a|la|el|los|las|un|una|algo|musica|canciones?|temas?|de|del|por favor|porfa)\s+"
 
 
 @dataclass
@@ -24,10 +34,29 @@ def quitar_saludo(texto: str) -> str:
     return re.sub(r"^\s*(hola\s+)?mac\b[\s,:;.!-]*", "", texto, flags=re.I).strip()
 
 
+def consulta_musica(t: str) -> str:
+    """Lo que hay que buscar: lo que sigue al primer verbo de música, sin el perfil, el sitio ni el «dale play»."""
+    m = re.search(VERBOS_MUSICA, t)
+    resto = t[m.end():] if m else t
+    for patron in RELLENO:
+        resto = re.sub(patron, " ", resto)
+    resto = re.sub(r"[\s,.;:!?]+$", "", re.sub(r"\s+", " ", resto)).strip()
+    while re.match(PREFIJOS, resto + " ") and resto:
+        nuevo = re.sub(PREFIJOS, "", resto + " ").strip()
+        if nuevo == resto:
+            break
+        resto = nuevo
+    return resto
+
+
 def interpretar(texto: str) -> Pedido:
     t = normalizar(quitar_saludo(texto))
     if t in ("/start", "/ayuda", "ayuda", "") or t.startswith("/help"):
         return Pedido("ayuda")
     if t.startswith("/perfiles") or re.search(r"\bperfiles\b", t):
         return Pedido("perfiles")
+    if t.startswith("/spotify"):
+        return Pedido("spotify", {"consulta": t[len("/spotify"):].strip()})
+    if "spotify" in t or re.search(VERBOS_MUSICA, t):
+        return Pedido("spotify", {"consulta": consulta_musica(t)})
     return Pedido("ayuda")
