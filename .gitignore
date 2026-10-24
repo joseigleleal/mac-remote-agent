@@ -1,5 +1,7 @@
 # Secretos y datos locales: nunca en git
 .env
+.env.*
+!.env.example
 data/
 *.log
 .secret-patterns
