@@ -112,11 +112,15 @@ tell application "Google Chrome"
   set salida to ""
   set sep to character id 9 -- tabulador (dentro de Chrome, "tab" es una pestaña)
   repeat with w in windows
-    if mode of w is "normal" then
-      repeat with t in tabs of w
-        set salida to salida & (id of w) & sep & (URL of t) & linefeed
-      end repeat
-    end if
+    try -- una ventana o pestaña puede cerrarse o cambiar mientras se recorre (ej. una redirección de login)
+      if mode of w is "normal" then
+        set wid to id of w
+        set urls to URL of every tab of w -- de una vez: no cambia a mitad de camino
+        repeat with u in urls
+          set salida to salida & wid & sep & (u as text) & linefeed
+        end repeat
+      end if
+    end try
   end repeat
   return salida
 end tell
@@ -176,6 +180,20 @@ end tell
 end run''', str(ventana), str(pestana))
 
 
+def url(ventana: int, pestana: int) -> str:
+    """Dirección actual de esa pestaña."""
+    return osascript('''on run argv
+tell application "Google Chrome" to return URL of tab (item 2 of argv as integer) of window id (item 1 of argv as integer)
+end run''', str(ventana), str(pestana))
+
+
+def ir(ventana: int, pestana: int, url: str) -> None:
+    """Lleva esa pestaña a otra dirección."""
+    osascript('''on run argv
+tell application "Google Chrome" to set URL of tab (item 2 of argv as integer) of window id (item 1 of argv as integer) to (item 3 of argv)
+end run''', str(ventana), str(pestana), url)
+
+
 def ejecutar_js(ventana: int, pestana: int, js: str) -> str:
     """Ejecuta JavaScript en esa pestaña y devuelve el resultado como texto."""
     return osascript('''on run argv
@@ -183,6 +201,14 @@ tell application "Google Chrome"
   return execute (tab (item 2 of argv as integer) of window id (item 1 of argv as integer)) javascript (item 3 of argv)
 end tell
 end run''', str(ventana), str(pestana), js)
+
+
+def ejecutar_js_privado(ventana: int, pestana: int, js: str) -> str:
+    """Como `ejecutar_js`, pero el JavaScript (que puede llevar una contraseña) va dentro del script que osascript lee
+    por la entrada estándar, no como argumento: los argumentos de un proceso se ven con `ps`."""
+    texto = js.replace("\\", "\\\\").replace('"', '\\"')  # comillas y barras escapadas para AppleScript
+    return osascript(f'tell application "Google Chrome" to return execute (tab {int(pestana)} of window id '
+                     f'{int(ventana)}) javascript "{texto}"')
 
 
 def abrir(carpeta: str, url: str) -> None:

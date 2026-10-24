@@ -17,6 +17,9 @@ controla lo que esa Mac puede hacer. Antes de usarlo o adaptarlo, lee estas regl
 - **Hacerse pasar por otra persona** o mandar mensajes en nombre de alguien sin que lo sepa.
 - **Saltarse los términos de un servicio**: evadir captchas, límites de uso o bloqueos, o automatizar donde el
   sitio lo prohíbe.
+- **Guardar o usar credenciales ajenas**, o de un empleador sin su autorización, para el inicio de sesión
+  automático. Y ten presente que si una organización hace vencer la sesión cada cierto tiempo, es una medida de
+  seguridad suya.
 - **Mover dinero**: pagos, compras o transferencias. El bot no tiene ni debe tener esas acciones.
 - **Vigilar a otras personas**: leer sus chats, correos o pantallas, o juntar sus datos.
 - **Mandar spam** o usar el bot para molestar a terceros.

@@ -4,7 +4,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 
-ACCIONES = ("musica", "estado", "pausar", "reanudar", "apagar", "comando", "detener", "comandos", "apps", "consumo", "cerrar",
+ACCIONES = ("login", "musica", "estado", "pausar", "reanudar", "apagar", "comando", "detener", "comandos", "apps", "consumo", "cerrar",
             "perfiles", "volumen", "spotify", "ayuda")
 
 VERBOS_MUSICA = r"\b(busca\w*|busque\w*|pon|ponme|ponle|pongas|reproduc\w*|toca|tocame|escuch\w*|play)\b"
@@ -87,6 +87,17 @@ def pedido_servicio(t: str) -> Pedido | None:
 MUSICA = r"\b(spotify|musica|cancion|tema)\b"
 
 
+def pedido_login(t: str) -> Pedido | None:
+    """«reautentica usal», «inicia sesión en correo», «/login usal». El sitio es la palabra que sigue (o ninguna)."""
+    if t.startswith("/login"):
+        return Pedido("login", {"sitio": t[len("/login"):].strip()})
+    m = re.search(r"\b(re-?autentica\w*|re-?logea\w*|re-?loguea\w*|logea\w*|loguea\w*|inicia\w* sesion|"
+                  r"vuelve a (entrar|iniciar sesion))\b\s*(en|a|de)?\s*(mi|el|la)?\s*(perfil|cuenta)?\s*(de)?\s*(?P<sitio>.*)$", t)
+    if m:
+        return Pedido("login", {"sitio": m.group("sitio").strip()})
+    return None
+
+
 def pedido_musica(t: str) -> Pedido | None:
     """«pausa spotify», «para la música», «sigue la música», «siguiente canción», «canción anterior».
     Va antes que el resto: «pausa» sola pausa el bot, y «detén la música» no es un comando de terminal."""
@@ -141,6 +152,9 @@ def pedido_apps(original: str, t: str) -> Pedido | None:
 def interpretar(texto: str) -> Pedido:
     original = quitar_saludo(texto)
     t = normalizar(original)
+    login = pedido_login(t)
+    if login:
+        return login
     musica = pedido_musica(t)
     if musica:
         return musica

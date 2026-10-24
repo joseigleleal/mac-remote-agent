@@ -11,13 +11,14 @@ import argparse
 import time
 from datetime import datetime
 
-from mac import apps, chrome, comandos, servicio, spotify, telegram, volumen
+from mac import apps, chrome, comandos, login, servicio, spotify, telegram, volumen
 from mac.config import DATA_DIR, lista
 from mac.interprete import Pedido, interpretar
 
 AYUDA = """Hola 👋 Soy tu Mac. Puedo:
 · ver qué perfiles de Chrome tienes abiertos: «hola mac, qué perfiles hay»
 · buscar y reproducir en Spotify: «pon bad bunny en spotify» o «en mi perfil personal pon karol g»
+· sesiones vencidas: «reautentica <sitio>» (/login) rellena el login con los datos de tu .env
 · la música: «pausa spotify», «sigue la música», «siguiente canción», «canción anterior»
 · el volumen: «sube el volumen», «baja el volumen 20», «volumen al 30», «silencia», «quita el silencio»
 · comandos de tu lista permitida: «ejecuta caffeinate -d» (en segundo plano) o «ejecuta caffeinate -d en la
@@ -35,6 +36,7 @@ MENU = [("estado", "Cuánto consume el bot y cómo está la Mac"), ("consumo", "
         ("apps", "Apps abiertas y su consumo"), ("cerrar", "Cerrar una app: /cerrar pycharm"),
         ("perfiles", "Perfiles de Chrome abiertos"), ("spotify", "Buscar y reproducir: /spotify bad bunny"),
         ("musica", "Spotify: /musica pausa · sigue · siguiente · anterior"),
+        ("login", "Volver a iniciar sesión: /login <sitio>"),
         ("volumen", "Volumen: /volumen 30"), ("comandos", "Comandos permitidos y los que corren"),
         ("ejecutar", "Ejecutar un comando permitido: /ejecutar caffeinate -d"),
         ("detener", "Detener un comando: /detener caffeinate"), ("pausar", "No hacer nada hasta /reanudar"),
@@ -88,6 +90,8 @@ class Bot:
         log(f"pedido: «{texto[:200]}» → {pedido.accion} {pedido.datos}")
         if servicio.pausado() and pedido.accion not in EN_PAUSA:
             self.decir(chat, "⏸️ Estoy en pausa. Dime «prende» para volver.")
+        elif pedido.accion == "login":
+            self.login(chat, pedido.datos.get("sitio", ""))
         elif pedido.accion == "musica":
             try:
                 self.decir(chat, spotify.controlar(pedido.datos["accion"]))
@@ -164,6 +168,24 @@ class Bot:
         botones = telegram.teclado([[(p.etiqueta, f"perfil:{p.carpeta}")] for p in abiertos])
         self.decir(chat, "¿En qué perfil de Chrome?", botones)
 
+    def login(self, chat, texto: str) -> None:
+        """Con el sitio dicho (o uno solo configurado), lo hace; si no, botones con los sitios del .env."""
+        sitios = login.sitios()
+        if not sitios:
+            self.decir(chat, "No hay sitios configurados: LOGIN_SITIOS y LOGIN_<SITIO>_… en .env.")
+            return
+        nombre = next((n for n in sitios if n in texto.split() or n == texto), None)
+        if not nombre and len(sitios) == 1:
+            nombre = next(iter(sitios))
+        if not nombre:
+            filas = [[(n, f"login:{n}")] for n in sitios]
+            self.decir(chat, "¿En cuál inicio sesión?", telegram.teclado(filas))
+            return
+        try:
+            self.decir(chat, login.reautenticar(nombre))
+        except chrome.ChromeError as e:
+            self.decir(chat, f"⚠️ {e}")
+
     def preguntar_cierre(self, chat, texto: str) -> None:
         """Confirma con botón antes de cerrar (si hay varias que coinciden, un botón por cada una)."""
         candidatas = [a for a in apps.buscar(texto) if not apps.protegida(a.nombre)]
@@ -192,6 +214,10 @@ class Bot:
         log(f"botón: {q.get('data')}")
         telegram.responder_boton(q["id"])
         dato, mid = q.get("data", ""), (q.get("message") or {}).get("message_id")
+        if dato.startswith("login:"):
+            telegram.editar(chat, mid, f"Iniciando sesión en {dato[6:]}…")
+            self.login(chat, dato[6:])
+            return
         if dato == "cerrar:no":
             telegram.editar(chat, mid, "No cierro nada.")
             return

@@ -22,6 +22,7 @@ comandos de una lista que tú defines. Los comandos también aparecen en el men�
 | «hola mac, qué perfiles hay» · `/perfiles` | Lista los perfiles de Chrome abiertos (los permitidos) |
 | «hola mac, pon bad bunny en spotify» · `/spotify bad bunny` | Si no dices el perfil y hay varios abiertos, pregunta con botones. Busca en la pestaña de Spotify de ese perfil (sin recargarla) y reproduce el primer resultado; si no hay pestaña, la abre en ese perfil |
 | «pausa spotify» · «sigue la música» · «siguiente canción» · «canción anterior» · `/musica pausa` | Controla la pestaña de Spotify que está sonando (busca en los perfiles abiertos, sin preguntar). «pausa» sola pausa el bot |
+| «reautentica <sitio>» · «inicia sesión en <sitio>» · `/login <sitio>` | Si una pestaña del perfil quedó en la página de login (sesión vencida), rellena usuario (si está vacío) y clave del `.env` y continúa, paso a paso (confirmar cuenta → clave). Si queda en un segundo factor o captcha, avisa y no lo salta |
 | «hola mac, en mi perfil personal …» | Usa ese perfil (por su apodo en `.env`, su nombre o su carpeta) |
 | «sube el volumen» · «baja el volumen 20» · «volumen al 30» · «silencia» · «quita el silencio» · `/volumen 50` | Cambia el volumen de la Mac (de a 10 si no se dice cuánto) y dice cómo quedó |
 
@@ -76,6 +77,7 @@ compara y deduce de quién es cada ventana.
 | `mac/volumen.py` | Volumen y silencio de la Mac por AppleScript (`set volume`) | `estado`, `ajustar` |
 | `mac/comandos.py` | Comandos de la lista permitida, sin shell, en segundo plano; registro en `data/comandos.json` para verlos y detenerlos | `ejecutar`, `detener`, `corriendo`, `resumen` |
 | `mac/apps.py` | Apps abiertas (System Events, con bundle id), consumo por app (memoria de `top`, que incluye la de la GPU como el Monitor de Actividad; CPU de `ps`; agrupado por `/X.app/`) y cerrar por bundle id | `abiertas`, `consumo`, `resumen_mac`, `cerrar`, `buscar` |
+| `mac/login.py` | Sitios de `LOGIN_*` en `.env`, pestaña de login por dominio, relleno genérico (setter nativo + eventos `input`/`change`), espera a que cada paso cargue y verifica en la misma pestaña; `--guardar` pide la clave sin mostrarla | `sitios`, `reautenticar`, `estado_pagina`, `guardar` |
 | `mac/terminal.py` | Escribe un comando en una terminal visible: IDE de JetBrains con teclado simulado (Esc → ⌥F12 → ⌘T → comando → Enter) o iTerm por su AppleScript | `escribir` |
 | `mac/servicio.py` | Consumo (`ps`, `memory_pressure`), pausa (archivo `data/pausado`) y apagado total (`launchctl disable` + `bootout`) | `recursos`, `pausar`, `reanudar`, `apagar` |
 | `scripts/bot.sh` | Prender, apagar, reiniciar, estado y log desde la Mac | `prender`, `apagar`, `reiniciar`, `estado`, `log` |
@@ -140,6 +142,10 @@ compara y deduce de quién es cada ventana.
   corre lo que está tal cual en `COMANDOS_PERMITIDOS`, con `shlex.split` y sin shell (no hay `|`, `;` ni `&&` que
   colar). Por defecto corre en segundo plano (no depende de que el IDE esté abierto); en una terminal visible solo si
   se pide, y siempre en una pestaña nueva, porque no hay forma confiable de saber qué terminal está libre.
+- **Login con datos del `.env`, con cuidado:** la clave queda en texto plano (el `.env` con permisos 600). Nunca va a
+  Telegram ni al log, ni como argumento de un proceso (se vería con `ps`): viaja a Chrome dentro del script que
+  `osascript` lee por la entrada estándar. Si un intento falla, no reintenta: varios fallos pueden bloquear la cuenta.
+  Más seguro sería el Llavero de macOS; aquí se eligió el `.env` por simplicidad.
 - **Pausa además de apagado:** apagado, el bot ya no escucha Telegram y no podría prenderse desde ahí. La pausa
   deja la conexión abierta (casi sin costo) para poder volver con un mensaje.
 - **Perfiles permitidos:** un perfil del trabajo o con datos sensibles se deja fuera en `.env`, sin tocar código.
