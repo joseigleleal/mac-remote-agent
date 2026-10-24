@@ -11,7 +11,8 @@ import argparse
 import time
 from datetime import datetime
 
-from mac import apps, chrome, claude_aviso, claude_puente, comandos, login, servicio, spotify, telegram, volumen
+from mac import (apps, chrome, claude_aviso, claude_puente, comandos, login, servicio, spotify, telegram, volumen,
+                 whatsapp)
 from mac.config import DATA_DIR, lista
 from mac.interprete import Pedido, interpretar
 
@@ -20,6 +21,7 @@ AYUDA = """Hola 👋 Soy tu Mac. Puedo:
 · buscar y reproducir en Spotify: «pon bad bunny en spotify» o «en mi perfil personal pon karol g»
 · Claude Code: «qué haces» (/claude); «avisos claude on» = modo fuera: te aviso, me respondes respondiendo al aviso
   o con «claude: …», y sus preguntas llegan con botones. «avisos claude off» al volver a la Mac
+· WhatsApp para tu clon: «chats», «exporta <nombre>», «exporta 5» (al azar), «excluye <nombre>»
 · sesiones vencidas: «reautentica <sitio>» (/login) rellena el login con los datos de tu .env
 · la música: «pausa spotify», «sigue la música», «siguiente canción», «canción anterior»
 · el volumen: «sube el volumen», «baja el volumen 20», «volumen al 30», «silencia», «quita el silencio»
@@ -40,6 +42,8 @@ MENU = [("estado", "Cuánto consume el bot y cómo está la Mac"), ("consumo", "
         ("musica", "Spotify: /musica pausa · sigue · siguiente · anterior"),
         ("login", "Volver a iniciar sesión: /login <sitio>"),
         ("claude", "Qué está haciendo Claude Code"),
+        ("chats", "Tus chats de WhatsApp con más mensajes tuyos"),
+        ("exporta", "Exportar chats para tu clon: /exporta Juan · /exporta 5"),
         ("avisos_claude", "Modo fuera con Claude Code: /avisos_claude on · off"),
         ("volumen", "Volumen: /volumen 30"), ("comandos", "Comandos permitidos y los que corren"),
         ("ejecutar", "Ejecutar un comando permitido: /ejecutar caffeinate -d"),
@@ -111,6 +115,17 @@ class Bot:
         log(f"pedido: «{texto[:200]}» → {pedido.accion} {pedido.datos}")
         if servicio.pausado() and pedido.accion not in EN_PAUSA:
             self.decir(chat, "⏸️ Estoy en pausa. Dime «prende» para volver.")
+        elif pedido.accion.startswith("wa_"):
+            try:
+                if pedido.accion == "wa_chats":
+                    self.decir(chat, whatsapp.resumen())
+                elif pedido.accion == "wa_exporta":
+                    self.decir(chat, whatsapp.exportar(pedido.datos["valor"] or "5"))
+                else:
+                    self.decir(chat, "🚫 No exportaré chats que contengan: " + ", ".join(whatsapp.excluir(
+                        pedido.datos["valor"])))
+            except whatsapp.WhatsAppError as e:
+                self.decir(chat, f"⚠️ {e}")
         elif pedido.accion == "claude":
             self.decir(chat, claude_puente.que_haces())
         elif pedido.accion == "avisos":

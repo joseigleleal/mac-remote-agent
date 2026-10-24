@@ -20,6 +20,9 @@ controla lo que esa Mac puede hacer. Antes de usarlo o adaptarlo, lee estas regl
 - **Guardar o usar credenciales ajenas**, o de un empleador sin su autorización, para el inicio de sesión
   automático. Y ten presente que si una organización hace vencer la sesión cada cierto tiempo, es una medida de
   seguridad suya.
+- **Leer o exportar chats de WhatsApp de otra persona**, o usar los tuyos para algo distinto de aprender tu propio
+  estilo. Aun siendo tuyos, contienen mensajes de terceros: por eso solo se guarda el mensaje anterior como contexto,
+  se quitan teléfonos y correos, y todo queda en tu Mac.
 - **Mover dinero**: pagos, compras o transferencias. El bot no tiene ni debe tener esas acciones.
 - **Vigilar a otras personas**: leer sus chats, correos o pantallas, o juntar sus datos.
 - **Mandar spam** o usar el bot para molestar a terceros.
