@@ -1,0 +1,45 @@
+# Uso responsable
+
+Este proyecto permite controlar una Mac desde Telegram: abrir y usar el navegador con tus sesiones iniciadas,
+reproducir música y, más adelante, otras tareas. Eso es útil y también delicado, porque quien controle el bot
+controla lo que esa Mac puede hacer. Antes de usarlo o adaptarlo, lee estas reglas.
+
+## Para qué es
+
+- Automatizar **tu propia** Mac, con **tus propias** cuentas, para tareas tuyas.
+- Aprender y experimentar con agentes que actúan sobre un equipo real.
+
+## Qué no se debe hacer
+
+- **Controlar un equipo o una cuenta que no son tuyos** sin permiso expreso y por escrito de su dueño.
+- **Usar cuentas o sistemas de un empleador o cliente** sin su autorización, ni sacar su información fuera de
+  los canales que ellos aprueban (los mensajes del bot pasan por Telegram).
+- **Hacerse pasar por otra persona** o mandar mensajes en nombre de alguien sin que lo sepa.
+- **Saltarse los términos de un servicio**: evadir captchas, límites de uso o bloqueos, o automatizar donde el
+  sitio lo prohíbe.
+- **Mover dinero**: pagos, compras o transferencias. El bot no tiene ni debe tener esas acciones.
+- **Vigilar a otras personas**: leer sus chats, correos o pantallas, o juntar sus datos.
+- **Mandar spam** o usar el bot para molestar a terceros.
+
+## Seguridad mínima
+
+- **El bot solo obedece a los chats de `TELEGRAM_CHAT_ID`.** Si está vacío, no obedece a nadie. Nunca lo dejes
+  abierto a cualquiera.
+- **El token es la llave de tu Mac.** Va solo en `.env` (fuera de git). Si se filtra: @BotFather → `/revoke`, y
+  pon el nuevo en `.env`.
+- **Solo acciones de una lista cerrada.** El texto que llega por Telegram nunca se ejecuta como comando: se
+  interpreta y se elige una acción conocida. Al agregar acciones, mantén esa regla.
+- **Perfiles permitidos.** Con `CHROME_PERFILES_PERMITIDOS` deja fuera los perfiles que el bot no debe tocar
+  (por ejemplo, el del trabajo).
+- **Mac con contraseña y bloqueo de pantalla.** El bot actúa con tu sesión abierta.
+
+## Privacidad
+
+- Lo que le pides al bot y lo que te responde pasa por los servidores de Telegram.
+- En el equipo solo se guardan logs en `data/` (fuera de git). No se guardan contraseñas ni contenido de las
+  páginas.
+
+## Sin garantía
+
+Se comparte como ejemplo, tal cual, sin garantía de ningún tipo. Cada persona es responsable de cómo lo usa y de
+cumplir las leyes y los términos de los servicios que automatice.

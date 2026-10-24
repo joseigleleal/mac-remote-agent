@@ -1,0 +1,13 @@
+# Secretos y datos locales: nunca en git
+.env
+data/
+*.log
+.secret-patterns
+
+# Entorno y editores
+.venv
+.venv/
+*.nosync
+__pycache__/
+.idea/
+.DS_Store
