@@ -1,6 +1,7 @@
-# hola-mac
+# mac-remote-agent
 
-Un bot de Telegram que hace cosas en tu Mac: le escribes «hola mac, en mi perfil personal pon bad bunny en
+Un agente que maneja tu Mac a distancia desde Telegram. Le hablas como «hola mac, …» (el saludo es opcional) y hace
+cosas en tu Mac: le escribes «hola mac, en mi perfil personal pon bad bunny en
 spotify» y lo hace en tu Chrome, con tus sesiones ya iniciadas y en la pestaña que ya tenías abierta.
 
 > Antes de usarlo o adaptarlo, lee [Uso responsable](USO_RESPONSABLE.md): quien controla el bot controla la Mac.

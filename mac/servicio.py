@@ -6,7 +6,7 @@ from datetime import datetime
 
 from mac.config import DATA_DIR
 
-ETIQUETA = "com.holamac.bot"  # la misma de scripts/instalar_launchd.sh
+ETIQUETA = "com.mac-remote-agent.bot"  # la misma de scripts/instalar_launchd.sh
 PAUSA = DATA_DIR / "pausado"  # si existe, el bot está en pausa (sobrevive a reinicios)
 
 

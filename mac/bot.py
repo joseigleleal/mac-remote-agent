@@ -1,4 +1,4 @@
-"""Bot «hola mac»: recibe pedidos por Telegram y los hace en la Mac.
+"""mac-remote-agent: recibe pedidos por Telegram («hola mac, …») y los hace en la Mac.
 
 Corre todo el tiempo (launchd lo mantiene vivo) y espera mensajes con long polling: no gasta CPU mientras espera.
 Solo obedece a los chats de TELEGRAM_CHAT_ID; a cualquier otro no le responde.
@@ -240,7 +240,7 @@ def quien() -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Bot «hola mac»")
+    parser = argparse.ArgumentParser(description="mac-remote-agent: maneja la Mac desde Telegram")
     parser.add_argument("--quien", action="store_true", help="Muestra el chat_id de quien le escribió al bot")
     args = parser.parse_args()
     if args.quien:

@@ -8,7 +8,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-ETIQUETA="com.holamac.bot"
+ETIQUETA="com.mac-remote-agent.bot"
 SERVICIO="gui/$(id -u)/$ETIQUETA"
 
 case "${1:-estado}" in

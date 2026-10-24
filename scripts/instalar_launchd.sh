@@ -5,7 +5,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-ETIQUETA="com.holamac.bot"
+ETIQUETA="com.mac-remote-agent.bot"
 PLIST="$HOME/Library/LaunchAgents/$ETIQUETA.plist"
 
 launchctl bootout "gui/$(id -u)/$ETIQUETA" 2>/dev/null || true
