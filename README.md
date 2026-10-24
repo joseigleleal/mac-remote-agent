@@ -23,6 +23,7 @@ comandos de una lista que tú defines. Los comandos también aparecen en el men�
 | «hola mac, pon bad bunny en spotify» · `/spotify bad bunny` | Si no dices el perfil y hay varios abiertos, pregunta con botones. Busca en la pestaña de Spotify de ese perfil (sin recargarla) y reproduce el primer resultado; si no hay pestaña, la abre en ese perfil |
 | «pausa spotify» · «sigue la música» · «siguiente canción» · «canción anterior» · `/musica pausa` | Controla la pestaña de Spotify que está sonando (busca en los perfiles abiertos, sin preguntar). «pausa» sola pausa el bot |
 | «reautentica <sitio>» · «inicia sesión en <sitio>» · `/login <sitio>` | Si una pestaña del perfil quedó en la página de login (sesión vencida), rellena usuario (si está vacío) y clave del `.env` y continúa, paso a paso (confirmar cuenta → clave). Si queda en un segundo factor o captcha, avisa y no lo salta |
+| «avisos claude off» · «avisos claude on» · `/avisos_claude` | Enciende o apaga los avisos de sesiones de Claude Code (ver abajo) |
 | «hola mac, en mi perfil personal …» | Usa ese perfil (por su apodo en `.env`, su nombre o su carpeta) |
 | «sube el volumen» · «baja el volumen 20» · «volumen al 30» · «silencia» · «quita el silencio» · `/volumen 50` | Cambia el volumen de la Mac (de a 10 si no se dice cuánto) y dice cómo quedó |
 
@@ -78,6 +79,7 @@ compara y deduce de quién es cada ventana.
 | `mac/comandos.py` | Comandos de la lista permitida, sin shell, en segundo plano; registro en `data/comandos.json` para verlos y detenerlos | `ejecutar`, `detener`, `corriendo`, `resumen` |
 | `mac/apps.py` | Apps abiertas (System Events, con bundle id), consumo por app (memoria de `top`, que incluye la de la GPU como el Monitor de Actividad; CPU de `ps`; agrupado por `/X.app/`) y cerrar por bundle id | `abiertas`, `consumo`, `resumen_mac`, `cerrar`, `buscar` |
 | `mac/login.py` | Sitios de `LOGIN_*` en `.env`, pestaña de login por dominio, relleno genérico (setter nativo + eventos `input`/`change`), espera a que cada paso cargue y verifica en la misma pestaña; `--guardar` pide la clave sin mostrarla | `sitios`, `reautenticar`, `estado_pagina`, `guardar` |
+| `mac/claude_aviso.py` | Hook de Claude Code (eventos `Stop` y `Notification`): manda por Telegram el comienzo de la última respuesta o el aviso de que necesita permiso o una respuesta | `texto_aviso`, `ultima_respuesta` |
 | `mac/terminal.py` | Escribe un comando en una terminal visible: IDE de JetBrains con teclado simulado (Esc → ⌥F12 → ⌘T → comando → Enter) o iTerm por su AppleScript | `escribir` |
 | `mac/servicio.py` | Consumo (`ps`, `memory_pressure`), pausa (archivo `data/pausado`) y apagado total (`launchctl disable` + `bootout`) | `recursos`, `pausar`, `reanudar`, `apagar` |
 | `scripts/bot.sh` | Prender, apagar, reiniciar, estado y log desde la Mac | `prender`, `apagar`, `reiniciar`, `estado`, `log` |
@@ -124,6 +126,15 @@ compara y deduce de quién es cada ventana.
 - **Otro navegador basado en Chromium** (Brave, Edge): cambia `APP` y `CHROME_DIR`; el AppleScript es el mismo.
 - **Lenguaje natural más libre:** reemplaza `interpretar` por un modelo que devuelva el mismo `Pedido` (JSON con
   una acción de la lista). El resto no cambia.
+
+### Avisos de una sesión de Claude Code
+
+Para seguir una sesión larga de Claude Code sin estar frente a la Mac: en `.claude/settings.local.json` del proyecto
+(local, no se versiona), un hook `Stop` y otro `Notification` con
+`cd <este repo> && .venv/bin/python -m mac.claude_aviso` (con `"async": true`, para no frenar la sesión). Llega un
+Telegram cuando Claude termina un turno (con el comienzo de su respuesta) o pide permiso o una respuesta. **Solo
+avisa**: para contestar se usa el control remoto propio de Claude Code (`/remote-control`), que abre la misma sesión
+en el celular. Meter texto de Telegram en la consola sería ejecutar órdenes de un chat sin la lista cerrada.
 
 ## Decisiones de diseño (y por qué)
 

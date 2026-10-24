@@ -81,6 +81,11 @@ class Interprete(unittest.TestCase):
         self.assertEqual(interpretar("pausa").accion, "pausar")  # sola, pausa el bot
         self.assertEqual(interpretar("qué pasa con la música").accion, "ayuda")  # «pasa» no es «siguiente»
 
+    def test_avisos_de_claude(self):
+        self.assertEqual(interpretar("avisos claude off").datos, {"activar": False})
+        self.assertEqual(interpretar("/avisos_claude on").datos, {"activar": True})
+        self.assertEqual(interpretar("/avisos_claude").datos, {"activar": None})  # solo consulta
+
     def test_otros_pedidos(self):
         self.assertEqual(interpretar("hola mac, qué perfiles hay").accion, "perfiles")
         self.assertEqual(interpretar("hola mac, ¿cómo estás?").accion, "ayuda")

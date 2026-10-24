@@ -11,13 +11,14 @@ import argparse
 import time
 from datetime import datetime
 
-from mac import apps, chrome, comandos, login, servicio, spotify, telegram, volumen
+from mac import apps, chrome, claude_aviso, comandos, login, servicio, spotify, telegram, volumen
 from mac.config import DATA_DIR, lista
 from mac.interprete import Pedido, interpretar
 
 AYUDA = """Hola 👋 Soy tu Mac. Puedo:
 · ver qué perfiles de Chrome tienes abiertos: «hola mac, qué perfiles hay»
 · buscar y reproducir en Spotify: «pon bad bunny en spotify» o «en mi perfil personal pon karol g»
+· avisos de Claude Code: «avisos claude off» / «avisos claude on» (los manda un hook al terminar o pedir algo)
 · sesiones vencidas: «reautentica <sitio>» (/login) rellena el login con los datos de tu .env
 · la música: «pausa spotify», «sigue la música», «siguiente canción», «canción anterior»
 · el volumen: «sube el volumen», «baja el volumen 20», «volumen al 30», «silencia», «quita el silencio»
@@ -37,6 +38,7 @@ MENU = [("estado", "Cuánto consume el bot y cómo está la Mac"), ("consumo", "
         ("perfiles", "Perfiles de Chrome abiertos"), ("spotify", "Buscar y reproducir: /spotify bad bunny"),
         ("musica", "Spotify: /musica pausa · sigue · siguiente · anterior"),
         ("login", "Volver a iniciar sesión: /login <sitio>"),
+        ("avisos_claude", "Avisos de Claude Code: /avisos_claude on · off"),
         ("volumen", "Volumen: /volumen 30"), ("comandos", "Comandos permitidos y los que corren"),
         ("ejecutar", "Ejecutar un comando permitido: /ejecutar caffeinate -d"),
         ("detener", "Detener un comando: /detener caffeinate"), ("pausar", "No hacer nada hasta /reanudar"),
@@ -90,6 +92,15 @@ class Bot:
         log(f"pedido: «{texto[:200]}» → {pedido.accion} {pedido.datos}")
         if servicio.pausado() and pedido.accion not in EN_PAUSA:
             self.decir(chat, "⏸️ Estoy en pausa. Dime «prende» para volver.")
+        elif pedido.accion == "avisos":
+            activar = pedido.datos["activar"]
+            if activar is True:
+                claude_aviso.APAGADO.unlink(missing_ok=True)
+            elif activar is False:
+                claude_aviso.APAGADO.parent.mkdir(exist_ok=True)
+                claude_aviso.APAGADO.write_text("off")
+            encendidos = not claude_aviso.APAGADO.exists()
+            self.decir(chat, "🔔 Avisos de Claude encendidos." if encendidos else "🔕 Avisos de Claude apagados.")
         elif pedido.accion == "login":
             self.login(chat, pedido.datos.get("sitio", ""))
         elif pedido.accion == "musica":
