@@ -4,7 +4,8 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 
-ACCIONES = ("estado", "pausar", "reanudar", "apagar", "perfiles", "volumen", "spotify", "ayuda")
+ACCIONES = ("estado", "pausar", "reanudar", "apagar", "comando", "detener", "comandos", "perfiles", "volumen",
+            "spotify", "ayuda")
 
 VERBOS_MUSICA = r"\b(busca\w*|busque\w*|pon|ponme|ponle|pongas|reproduc\w*|toca|tocame|escuch\w*|play)\b"
 # Lo que no es parte de la búsqueda: el perfil, el sitio y el «y dale play» del final.
@@ -82,8 +83,27 @@ def pedido_servicio(t: str) -> Pedido | None:
     return None
 
 
+def pedido_comando(original: str, t: str) -> Pedido | None:
+    """«ejecuta caffeinate -d (en la terminal…)», «detén caffeinate», «qué comandos hay». El comando se toma del texto
+    original (con mayúsculas y signos); si se ejecuta o no lo decide la lista permitida, no esto."""
+    if t.startswith("/comandos") or re.search(r"\bcomandos\b", t):
+        return Pedido("comandos")
+    m = re.match(r"^\s*(/ejecutar|ejecuta\w*|corre|lanza|run)\s+(.+?)"
+                 r"(\s+(en|desde)\s+(la|el|una|un)\s+(consola|terminal)\b.*)?\s*$", original, flags=re.I | re.S)
+    if m:
+        return Pedido("comando", {"comando": m.group(2).strip().strip("«»\"'`")})
+    m = re.match(r"^\s*(/detener|det[eé]n\w*|mata|termina|para el comando)\s+(.+?)\s*$", original, flags=re.I)
+    if m:
+        return Pedido("detener", {"comando": m.group(2).strip().strip("«»\"'`")})
+    return None
+
+
 def interpretar(texto: str) -> Pedido:
-    t = normalizar(quitar_saludo(texto))
+    original = quitar_saludo(texto)
+    t = normalizar(original)
+    comando = pedido_comando(original, t)
+    if comando:
+        return comando
     if t in ("/start", "/ayuda", "ayuda", "") or t.startswith("/help"):
         return Pedido("ayuda")
     if t.startswith("/perfiles") or re.search(r"\bperfiles\b", t):

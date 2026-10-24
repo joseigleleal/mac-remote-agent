@@ -22,6 +22,8 @@ spotify» y lo hace en tu Chrome, con tus sesiones ya iniciadas y en la pestaña
 | «hola mac, en mi perfil personal …» | Usa ese perfil (por su apodo en `.env`, su nombre o su carpeta) |
 | «sube el volumen» · «baja el volumen 20» · «volumen al 30» · «silencia» · «quita el silencio» · `/volumen 50` | Cambia el volumen de la Mac (de a 10 si no se dice cuánto) y dice cómo quedó |
 
+| «ejecuta caffeinate -d» · `/ejecutar …` | Solo si el comando está **exacto** en `COMANDOS_PERMITIDOS` (`.env`). Corre sin shell y en segundo plano: no depende de una terminal ni del IDE. Si termina en 3 s devuelve su salida |
+| «detén caffeinate» · «qué comandos hay» · `/comandos` | Detiene los comandos que lanzó el bot y lista los permitidos y los que corren |
 | «cuánto consumes» · `/estado` | CPU, RAM y tiempo encendido del bot, y cómo está la Mac |
 | «pausa» · «prende» · `/pausar` · `/reanudar` | Pausa: sigue escuchando pero no hace nada (salvo estado y prender) hasta «prende». Sobrevive a reinicios |
 | «apágate del todo» · `/apagar` | Pide confirmación con botón y se baja de launchd. Ya no escucha: se vuelve a prender desde la Mac |
@@ -65,6 +67,7 @@ compara y deduce de quién es cada ventana.
 | `mac/chrome.py` | Perfiles, perfiles abiertos, ventana de cada perfil, buscar pestaña, ejecutar JavaScript, abrir URL en un perfil | `perfiles`, `abiertos`, `resolver`, `ventanas`, `asignar_perfiles`, `buscar_pestana`, `ejecutar_js`, `abrir` |
 | `mac/spotify.py` | Búsqueda y play en la web de Spotify | `reproducir`, `sonando` |
 | `mac/volumen.py` | Volumen y silencio de la Mac por AppleScript (`set volume`) | `estado`, `ajustar` |
+| `mac/comandos.py` | Comandos de la lista permitida, sin shell, en segundo plano; registro en `data/comandos.json` para verlos y detenerlos | `ejecutar`, `detener`, `corriendo`, `resumen` |
 | `mac/servicio.py` | Consumo (`ps`, `memory_pressure`), pausa (archivo `data/pausado`) y apagado total (`launchctl disable` + `bootout`) | `recursos`, `pausar`, `reanudar`, `apagar` |
 | `scripts/bot.sh` | Prender, apagar, reiniciar, estado y log desde la Mac | `prender`, `apagar`, `reiniciar`, `estado`, `log` |
 | `mac/telegram.py` | Cliente mínimo de la API de bots | `actualizaciones`, `enviar`, `editar`, `teclado` |
@@ -122,6 +125,10 @@ compara y deduce de quién es cada ventana.
 - **Reglas antes que un modelo:** para pocas acciones, unas reglas son instantáneas, gratis, sin red y se
   prueban. Un modelo tiene sentido cuando las acciones crezcan.
 - **Long polling y no webhook:** no hace falta abrir puertos ni un servidor público; la Mac pregunta a Telegram.
+- **Comandos solo de una lista exacta, sin shell:** «ejecuta X» por Telegram es lo más riesgoso del bot. Solo
+  corre lo que está tal cual en `COMANDOS_PERMITIDOS`, con `shlex.split` y sin shell (no hay `|`, `;` ni `&&` que
+  colar). Se descartó escribir en una terminal del IDE: exige el permiso de Accesibilidad, roba el foco y no hay
+  forma confiable de saber qué terminal está libre.
 - **Pausa además de apagado:** apagado, el bot ya no escucha Telegram y no podría prenderse desde ahí. La pausa
   deja la conexión abierta (casi sin costo) para poder volver con un mensaje.
 - **Perfiles permitidos:** un perfil del trabajo o con datos sensibles se deja fuera en `.env`, sin tocar código.

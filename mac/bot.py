@@ -11,7 +11,7 @@ import argparse
 import time
 from datetime import datetime
 
-from mac import chrome, servicio, spotify, telegram, volumen
+from mac import chrome, comandos, servicio, spotify, telegram, volumen
 from mac.config import lista
 from mac.interprete import Pedido, interpretar
 
@@ -19,6 +19,7 @@ AYUDA = """Hola 👋 Soy tu Mac. Puedo:
 · ver qué perfiles de Chrome tienes abiertos: «hola mac, qué perfiles hay»
 · buscar y reproducir en Spotify: «pon bad bunny en spotify» o «en mi perfil personal pon karol g»
 · el volumen: «sube el volumen», «baja el volumen 20», «volumen al 30», «silencia», «quita el silencio»
+· comandos de tu lista permitida: «ejecuta caffeinate -d», «detén caffeinate», «qué comandos hay»
 · el bot: «cuánto consumes» (/estado), «pausa» y «prende» (/pausar, /reanudar), «apágate del todo» (/apagar)
 El «hola mac» es opcional. Si no me dices el perfil, te pregunto con botones."""
 
@@ -76,6 +77,12 @@ class Bot:
             self.decir(chat, "¿Me apago del todo? Ojo: después no podré escucharte; para prenderme hay que hacerlo "
                              "desde la Mac (scripts/bot.sh prender). Si solo quieres que no haga nada, di «pausa».",
                        botones)
+        elif pedido.accion == "comando":
+            self.decir(chat, comandos.ejecutar(pedido.datos["comando"]))
+        elif pedido.accion == "detener":
+            self.decir(chat, comandos.detener(pedido.datos["comando"]))
+        elif pedido.accion == "comandos":
+            self.decir(chat, comandos.resumen())
         elif pedido.accion == "perfiles":
             self.decir(chat, texto_perfiles())
         elif pedido.accion == "volumen":
