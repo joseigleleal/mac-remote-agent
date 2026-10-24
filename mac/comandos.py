@@ -12,6 +12,7 @@ import subprocess
 import time
 from datetime import datetime
 
+from mac import terminal
 from mac.config import DATA_DIR, env
 
 REGISTRO = DATA_DIR / "comandos.json"
@@ -57,11 +58,14 @@ def corriendo() -> dict[int, dict]:
     return activos
 
 
-def ejecutar(comando: str) -> str:
+def ejecutar(comando: str, donde: str | None = None) -> str:
+    """En segundo plano, o escrito en una terminal visible si se dice `donde` (pycharm, intellij, iterm)."""
     comando = " ".join(comando.split())
     if comando not in permitidos():
         return (f"«{comando}» no está en la lista de comandos permitidos, así que no lo ejecuto. Si lo quieres, "
                 "agrégalo en .env a COMANDOS_PERMITIDOS (separados por «;») y reinicia el bot.")
+    if donde:
+        return terminal.escribir(donde, comando)
     DATA_DIR.mkdir(exist_ok=True)
     salida = DATA_DIR / "comando.log"
     with open(salida, "w") as f:
@@ -82,6 +86,11 @@ def detener(texto: str) -> str:
     """Detiene los comandos corriendo cuyo texto contiene `texto` (ej. «caffeinate»)."""
     texto = " ".join(texto.split())
     elegidos = {pid: d for pid, d in corriendo().items() if texto and texto in d["comando"]}
+    # También los permitidos que se lanzaron en una terminal (no los anotó el bot): por línea de comando exacta.
+    for c in permitidos():
+        if texto and texto in c:
+            pids = subprocess.run(["pgrep", "-fx", c], capture_output=True, text=True).stdout.split()
+            elegidos.update({int(pid): {"comando": c} for pid in pids})
     if not elegidos:
         return f"No hay ningún comando corriendo que coincida con «{texto}»."
     for pid in elegidos:

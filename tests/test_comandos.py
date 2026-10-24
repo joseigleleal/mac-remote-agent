@@ -36,9 +36,19 @@ class Comandos(unittest.TestCase):
         time.sleep(0.5)
         self.assertEqual(comandos.corriendo(), {})
 
+    def test_en_terminal_visible_tambien_exige_la_lista(self):
+        with mock.patch.object(comandos.terminal, "escribir", return_value="ok") as escribir:
+            self.assertIn("no está en la lista", comandos.ejecutar("rm -rf /", "pycharm"))
+            escribir.assert_not_called()
+            self.assertEqual(comandos.ejecutar("echo hola", "pycharm"), "ok")
+            escribir.assert_called_once_with("pycharm", "echo hola")
+
     def test_frases(self):
         pedido = interpretar("ejecuta caffeinate -d en la consola terminal que esta libre en pycharm")
-        self.assertEqual((pedido.accion, pedido.datos), ("comando", {"comando": "caffeinate -d"}))
+        self.assertEqual((pedido.accion, pedido.datos), ("comando", {"comando": "caffeinate -d", "donde": "pycharm"}))
+        self.assertEqual(interpretar("ejecuta caffeinate -d").datos["donde"], None)  # sin decir dónde: en segundo plano
+        self.assertEqual(interpretar("ejecuta caffeinate -d en intellij").datos["donde"], "intellij")
+        self.assertEqual(interpretar("ejecuta caffeinate -d en la terminal de iTerm").datos["donde"], "iterm")
         self.assertEqual(interpretar("detén caffeinate").datos, {"comando": "caffeinate"})
         self.assertEqual(interpretar("qué comandos hay").accion, "comandos")
 

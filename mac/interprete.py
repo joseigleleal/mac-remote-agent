@@ -4,8 +4,8 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 
-ACCIONES = ("estado", "pausar", "reanudar", "apagar", "comando", "detener", "comandos", "perfiles", "volumen",
-            "spotify", "ayuda")
+ACCIONES = ("estado", "pausar", "reanudar", "apagar", "comando", "detener", "comandos", "apps", "consumo", "cerrar",
+            "perfiles", "volumen", "spotify", "ayuda")
 
 VERBOS_MUSICA = r"\b(busca\w*|busque\w*|pon|ponme|ponle|pongas|reproduc\w*|toca|tocame|escuch\w*|play)\b"
 # Lo que no es parte de la búsqueda: el perfil, el sitio y el «y dale play» del final.
@@ -73,7 +73,8 @@ def pedido_servicio(t: str) -> Pedido | None:
     """El bot mismo: recursos, pausa, volver y apagado total (este último solo pide confirmación)."""
     if t.startswith("/apagar") or re.search(r"\bdel todo\b", t) and re.search(r"\bapag\w*", t):
         return Pedido("apagar")
-    if t.startswith(("/estado", "/recursos")) or re.search(r"\b(recursos|consum\w*|gastando|estado)\b", t):
+    if t.startswith("/estado") or re.search(r"\b(consumes|gastas|estado)\b", t) or re.search(r"\bbot\b", t) \
+            and re.search(r"\b(recursos|consum\w*|gast\w*)\b", t):
         return Pedido("estado")
     if t.startswith("/pausar") or re.fullmatch(r"(pausa\w*|apaga\w*|apagate|duerme\w*|descansa)( el bot)?", t):
         return Pedido("pausar")
@@ -89,12 +90,28 @@ def pedido_comando(original: str, t: str) -> Pedido | None:
     if t.startswith("/comandos") or re.search(r"\bcomandos\b", t):
         return Pedido("comandos")
     m = re.match(r"^\s*(/ejecutar|ejecuta\w*|corre|lanza|run)\s+(.+?)"
-                 r"(\s+(en|desde)\s+(la|el|una|un)\s+(consola|terminal)\b.*)?\s*$", original, flags=re.I | re.S)
+                 r"(\s+(en|desde)\s+(la\s+|el\s+|una\s+|un\s+)?(consola|terminal|pycharm|intellij|iterm)\b.*)?\s*$",
+                 original, flags=re.I | re.S)
     if m:
-        return Pedido("comando", {"comando": m.group(2).strip().strip("«»\"'`")})
+        cola = normalizar(m.group(3) or "")
+        donde = next((d for d in ("pycharm", "intellij", "iterm") if d in cola), None)
+        return Pedido("comando", {"comando": m.group(2).strip().strip("«»\"'`"), "donde": donde})
     m = re.match(r"^\s*(/detener|det[eé]n\w*|mata|termina|para el comando)\s+(.+?)\s*$", original, flags=re.I)
     if m:
         return Pedido("detener", {"comando": m.group(2).strip().strip("«»\"'`")})
+    return None
+
+
+def pedido_apps(original: str, t: str) -> Pedido | None:
+    """«qué apps tengo abiertas», «qué está consumiendo más», «cierra pycharm»."""
+    m = re.match(r"^\s*(/cerrar|cierra\w*|cerrar|sal\w* de)\s+(la\s+app\s+|la\s+aplicacion\s+|el\s+|la\s+)?(.+?)\s*$",
+                 normalizar(original))
+    if m:
+        return Pedido("cerrar", {"app": m.group(3)})
+    if t.startswith("/apps") or re.search(r"\b(apps|aplicaciones|programas)\b", t):
+        return Pedido("apps")
+    if t.startswith(("/consumo", "/recursos")) or re.search(r"\b(consum\w*|recursos|gasta\w*)\b", t):
+        return Pedido("consumo")
     return None
 
 
@@ -116,6 +133,9 @@ def interpretar(texto: str) -> Pedido:
     servicio = pedido_servicio(t)
     if servicio:
         return servicio
+    app = pedido_apps(original, t)
+    if app:
+        return app
     if t.startswith("/spotify"):
         return Pedido("spotify", {"consulta": t[len("/spotify"):].strip()})
     if "spotify" in t or re.search(VERBOS_MUSICA, t):

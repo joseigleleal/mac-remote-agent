@@ -108,6 +108,37 @@ class Servicio(unittest.TestCase):
         self.assertEqual(datos, ["apagar:si", "apagar:no"])
 
 
+class Apps(unittest.TestCase):
+    def setUp(self):
+        for p in (mock.patch.dict(os.environ, {"TELEGRAM_CHAT_ID": "111", "APPS_PROTEGIDAS": ""}),
+                  mock.patch.object(bot, "log"), mock.patch.object(bot.apps, "resumen_mac", return_value="consumo")):
+            p.start()
+            self.addCleanup(p.stop)
+        self.enviar = mock.patch.object(bot.telegram, "enviar").start()
+        self.editar = mock.patch.object(bot.telegram, "editar").start()
+        self.addCleanup(mock.patch.stopall)
+        self.abiertas = [bot.apps.App("pycharm", "com.jetbrains.pycharm"), bot.apps.App("Finder", "com.apple.finder")]
+        mock.patch.object(bot.apps, "abiertas", side_effect=lambda: list(self.abiertas)).start()
+
+    def test_cerrar_pide_confirmacion_y_despues_mide(self):
+        b = bot.Bot()
+        with mock.patch.object(bot.apps, "cerrar", side_effect=lambda app: self.abiertas.remove(app)) as cerrar, \
+                mock.patch.object(bot.telegram, "responder_boton"):
+            b.atender(mensaje(111, "cierra pycharm"))
+            cerrar.assert_not_called()  # primero pregunta
+            datos = [f[0]["callback_data"] for f in self.enviar.call_args.args[2]["inline_keyboard"]]
+            self.assertEqual(datos, ["cerrar:com.jetbrains.pycharm", "cerrar:no"])
+            b.atender({"update_id": 2, "callback_query": {"id": "q", "data": datos[0],
+                                                          "message": {"chat": {"id": 111}, "message_id": 5}}})
+        cerrar.assert_called_once()
+        self.assertIn("cerrada", self.enviar.call_args.args[1])
+        self.assertIn("consumo", self.enviar.call_args.args[1])  # re-mide después de cerrar
+
+    def test_protegidas_no_se_cierran(self):
+        bot.Bot().atender(mensaje(111, "cierra finder"))
+        self.assertIn("no se cierra", self.enviar.call_args.args[1])
+
+
 class Spotify(unittest.TestCase):
     def setUp(self):
         for p in (mock.patch.dict(os.environ, {"TELEGRAM_CHAT_ID": "111", "CHROME_PERFILES_PERMITIDOS": ""}),

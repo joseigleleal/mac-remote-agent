@@ -23,7 +23,11 @@ spotify» y lo hace en tu Chrome, con tus sesiones ya iniciadas y en la pestaña
 | «sube el volumen» · «baja el volumen 20» · «volumen al 30» · «silencia» · «quita el silencio» · `/volumen 50` | Cambia el volumen de la Mac (de a 10 si no se dice cuánto) y dice cómo quedó |
 
 | «ejecuta caffeinate -d» · `/ejecutar …` | Solo si el comando está **exacto** en `COMANDOS_PERMITIDOS` (`.env`). Corre sin shell y en segundo plano: no depende de una terminal ni del IDE. Si termina en 3 s devuelve su salida |
+| «ejecuta caffeinate -d en la terminal de pycharm» (o «en intellij», «en iterm») | El mismo comando permitido, pero escrito en una pestaña **nueva** de la terminal de ese programa, para verlo correr |
 | «detén caffeinate» · «qué comandos hay» · `/comandos` | Detiene los comandos que lanzó el bot y lista los permitidos y los que corren |
+| «qué apps tengo abiertas» · `/apps` | Las apps abiertas y lo que más consume |
+| «qué está consumiendo más» · `/consumo` | Carga y RAM libre de la Mac, y las apps que más RAM y CPU usan (los ayudantes cuentan con su app: Chrome incluye sus pestañas) |
+| «cierra pycharm» · `/cerrar …` | Pregunta con botón y la cierra como ⌘Q (si hay algo sin guardar, la app lo pregunta en la Mac). Después vuelve a medir el consumo. Finder, Dock y `APPS_PROTEGIDAS` no se cierran |
 | «cuánto consumes» · `/estado` | CPU, RAM y tiempo encendido del bot, y cómo está la Mac |
 | «pausa» · «prende» · `/pausar` · `/reanudar` | Pausa: sigue escuchando pero no hace nada (salvo estado y prender) hasta «prende». Sobrevive a reinicios |
 | «apágate del todo» · `/apagar` | Pide confirmación con botón y se baja de launchd. Ya no escucha: se vuelve a prender desde la Mac |
@@ -68,6 +72,8 @@ compara y deduce de quién es cada ventana.
 | `mac/spotify.py` | Búsqueda y play en la web de Spotify | `reproducir`, `sonando` |
 | `mac/volumen.py` | Volumen y silencio de la Mac por AppleScript (`set volume`) | `estado`, `ajustar` |
 | `mac/comandos.py` | Comandos de la lista permitida, sin shell, en segundo plano; registro en `data/comandos.json` para verlos y detenerlos | `ejecutar`, `detener`, `corriendo`, `resumen` |
+| `mac/apps.py` | Apps abiertas (System Events, con bundle id), consumo por app (`ps` agrupado por `/X.app/`) y cerrar por bundle id | `abiertas`, `consumo`, `resumen_mac`, `cerrar`, `buscar` |
+| `mac/terminal.py` | Escribe un comando en una terminal visible: IDE de JetBrains con teclado simulado (Esc → ⌥F12 → ⌘T → comando → Enter) o iTerm por su AppleScript | `escribir` |
 | `mac/servicio.py` | Consumo (`ps`, `memory_pressure`), pausa (archivo `data/pausado`) y apagado total (`launchctl disable` + `bootout`) | `recursos`, `pausar`, `reanudar`, `apagar` |
 | `scripts/bot.sh` | Prender, apagar, reiniciar, estado y log desde la Mac | `prender`, `apagar`, `reiniciar`, `estado`, `log` |
 | `mac/telegram.py` | Cliente mínimo de la API de bots | `actualizaciones`, `enviar`, `editar`, `teclado` |
@@ -127,8 +133,8 @@ compara y deduce de quién es cada ventana.
 - **Long polling y no webhook:** no hace falta abrir puertos ni un servidor público; la Mac pregunta a Telegram.
 - **Comandos solo de una lista exacta, sin shell:** «ejecuta X» por Telegram es lo más riesgoso del bot. Solo
   corre lo que está tal cual en `COMANDOS_PERMITIDOS`, con `shlex.split` y sin shell (no hay `|`, `;` ni `&&` que
-  colar). Se descartó escribir en una terminal del IDE: exige el permiso de Accesibilidad, roba el foco y no hay
-  forma confiable de saber qué terminal está libre.
+  colar). Por defecto corre en segundo plano (no depende de que el IDE esté abierto); en una terminal visible solo si
+  se pide, y siempre en una pestaña nueva, porque no hay forma confiable de saber qué terminal está libre.
 - **Pausa además de apagado:** apagado, el bot ya no escucha Telegram y no podría prenderse desde ahí. La pausa
   deja la conexión abierta (casi sin costo) para poder volver con un mensaje.
 - **Perfiles permitidos:** un perfil del trabajo o con datos sensibles se deja fuera en `.env`, sin tocar código.
@@ -146,6 +152,9 @@ compara y deduce de quién es cada ventana.
 
 - **Automatización:** la primera vez que el bot toque Chrome, macOS pregunta si la app que lo corre (Terminal o
   Python) puede controlar «Google Chrome» → Permitir. Se cambia en Ajustes → Privacidad y seguridad → Automatización.
+- **Accesibilidad** (solo para escribir en la terminal de PyCharm o IntelliJ): Ajustes → Privacidad y seguridad →
+  Accesibilidad → «+» → la app de Python que corre el bot (`⌘⇧G` y la ruta de `Python.app` dentro de la instalación
+  de Python). Si Python se actualiza, la ruta cambia y hay que darlo de nuevo.
 - **JavaScript desde Apple Events:** en Chrome, en **cada perfil** que vaya a usar el bot: Ver → Opciones para
   desarrolladores → Permitir JavaScript desde Eventos de Apple. Sin esto puede abrir pestañas pero no hacer clic.
 - **Que no se duerma:** el bot no responde con la Mac dormida. Ajustes → Batería → Opciones → «Evitar el reposo

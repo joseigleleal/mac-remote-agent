@@ -11,7 +11,7 @@ import argparse
 import time
 from datetime import datetime
 
-from mac import chrome, comandos, servicio, spotify, telegram, volumen
+from mac import apps, chrome, comandos, servicio, spotify, telegram, volumen
 from mac.config import lista
 from mac.interprete import Pedido, interpretar
 
@@ -19,7 +19,10 @@ AYUDA = """Hola 👋 Soy tu Mac. Puedo:
 · ver qué perfiles de Chrome tienes abiertos: «hola mac, qué perfiles hay»
 · buscar y reproducir en Spotify: «pon bad bunny en spotify» o «en mi perfil personal pon karol g»
 · el volumen: «sube el volumen», «baja el volumen 20», «volumen al 30», «silencia», «quita el silencio»
-· comandos de tu lista permitida: «ejecuta caffeinate -d», «detén caffeinate», «qué comandos hay»
+· comandos de tu lista permitida: «ejecuta caffeinate -d» (en segundo plano) o «ejecuta caffeinate -d en la
+  terminal de pycharm» (también intellij o iterm, para verlo), «detén caffeinate», «qué comandos hay»
+· apps: «qué apps tengo abiertas», «qué está consumiendo más» (/consumo), «cierra pycharm» (te pregunto antes
+  y después vuelvo a medir)
 · el bot: «cuánto consumes» (/estado), «pausa» y «prende» (/pausar, /reanudar), «apágate del todo» (/apagar)
 El «hola mac» es opcional. Si no me dices el perfil, te pregunto con botones."""
 
@@ -78,11 +81,18 @@ class Bot:
                              "desde la Mac (scripts/bot.sh prender). Si solo quieres que no haga nada, di «pausa».",
                        botones)
         elif pedido.accion == "comando":
-            self.decir(chat, comandos.ejecutar(pedido.datos["comando"]))
+            self.decir(chat, comandos.ejecutar(pedido.datos["comando"], pedido.datos.get("donde")))
         elif pedido.accion == "detener":
             self.decir(chat, comandos.detener(pedido.datos["comando"]))
         elif pedido.accion == "comandos":
             self.decir(chat, comandos.resumen())
+        elif pedido.accion == "apps":
+            abiertas = apps.abiertas()
+            self.decir(chat, "Apps abiertas: " + ", ".join(a.nombre for a in abiertas) + "\n\n" + apps.resumen_mac())
+        elif pedido.accion == "consumo":
+            self.decir(chat, apps.resumen_mac())
+        elif pedido.accion == "cerrar":
+            self.preguntar_cierre(chat, pedido.datos["app"])
         elif pedido.accion == "perfiles":
             self.decir(chat, texto_perfiles())
         elif pedido.accion == "volumen":
@@ -128,10 +138,40 @@ class Bot:
         botones = telegram.teclado([[(p.etiqueta, f"perfil:{p.carpeta}")] for p in abiertos])
         self.decir(chat, "¿En qué perfil de Chrome?", botones)
 
+    def preguntar_cierre(self, chat, texto: str) -> None:
+        """Confirma con botón antes de cerrar (si hay varias que coinciden, un botón por cada una)."""
+        candidatas = [a for a in apps.buscar(texto) if not apps.protegida(a.nombre)]
+        if not candidatas:
+            protegidas = [a.nombre for a in apps.buscar(texto) if apps.protegida(a.nombre)]
+            self.decir(chat, f"{protegidas[0]} no se cierra desde aquí." if protegidas else
+                       f"No encuentro una app abierta que se llame «{texto}». Dime «qué apps tengo abiertas».")
+            return
+        filas = [[(f"✖️ Cerrar {a.nombre}", f"cerrar:{a.bundle}")] for a in candidatas] + [[("Cancelar", "cerrar:no")]]
+        self.decir(chat, f"¿Cierro {' o '.join(a.nombre for a in candidatas)}? Si tiene algo sin guardar, la app "
+                         "te lo preguntará en la Mac.", telegram.teclado(filas))
+
+    def cerrar(self, chat, mid, bundle: str) -> None:
+        app = next((a for a in apps.abiertas() if a.bundle == bundle), None)
+        if not app or apps.protegida(app.nombre):
+            telegram.editar(chat, mid, "Esa app ya no está abierta.")
+            return
+        telegram.editar(chat, mid, f"Cerrando {app.nombre}…")
+        apps.cerrar(app)
+        cerrada = spotify.esperar(lambda: not apps.sigue_abierta(app), segundos=15)
+        estado = f"✅ {app.nombre} cerrada." if cerrada else \
+            f"⏳ {app.nombre} sigue abierta (¿pregunta si guardar algo? Revísalo en la Mac)."
+        self.decir(chat, estado + "\n\n" + apps.resumen_mac())
+
     def boton(self, chat, q: dict) -> None:
         log(f"botón: {q.get('data')}")
         telegram.responder_boton(q["id"])
         dato, mid = q.get("data", ""), (q.get("message") or {}).get("message_id")
+        if dato == "cerrar:no":
+            telegram.editar(chat, mid, "No cierro nada.")
+            return
+        if dato.startswith("cerrar:"):
+            self.cerrar(chat, mid, dato[len("cerrar:"):])
+            return
         if dato == "apagar:no":
             telegram.editar(chat, mid, "Sigo encendido.")
             return
