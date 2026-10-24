@@ -63,7 +63,7 @@ def esperar(funcion, segundos: float = 12, cada: float = 1):
 
 
 def reproducir(carpeta: str, consulta: str) -> str:
-    """Busca `consulta` en Spotify en ese perfil y reproduce el mejor resultado. Devuelve qué pasó, para contarlo."""
+    """Busca `consulta` en Spotify en ese perfil y reproduce el primer resultado. Devuelve qué pasó, para contarlo."""
     pestana = chrome.buscar_pestana(carpeta, DOMINIO)
     if pestana:
         previo = chrome.ejecutar_js(*pestana, JS_PRIMERO)
