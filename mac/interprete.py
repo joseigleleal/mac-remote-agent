@@ -4,7 +4,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 
-ACCIONES = ("estado", "pausar", "reanudar", "apagar", "comando", "detener", "comandos", "apps", "consumo", "cerrar",
+ACCIONES = ("musica", "estado", "pausar", "reanudar", "apagar", "comando", "detener", "comandos", "apps", "consumo", "cerrar",
             "perfiles", "volumen", "spotify", "ayuda")
 
 VERBOS_MUSICA = r"\b(busca\w*|busque\w*|pon|ponme|ponle|pongas|reproduc\w*|toca|tocame|escuch\w*|play)\b"
@@ -84,6 +84,29 @@ def pedido_servicio(t: str) -> Pedido | None:
     return None
 
 
+MUSICA = r"\b(spotify|musica|cancion|tema)\b"
+
+
+def pedido_musica(t: str) -> Pedido | None:
+    """«pausa spotify», «para la música», «sigue la música», «siguiente canción», «canción anterior».
+    Va antes que el resto: «pausa» sola pausa el bot, y «detén la música» no es un comando de terminal."""
+    if t.startswith("/musica"):
+        t = t[len("/musica"):] + " musica"
+    if re.search(r"\bsiguiente\b", t) or re.search(r"\b(salta\w*|skip)\b", t) and re.search(MUSICA, t) \
+            or re.search(r"\bpasa\w* (de |a )?(la |esta |el )?(cancion|tema)\b", t):
+        return Pedido("musica", {"accion": "siguiente"})
+    if re.search(r"\banterior\b", t) and re.search(MUSICA + r"|\banterior\b", t):
+        return Pedido("musica", {"accion": "anterior"})
+    if not re.search(MUSICA, t):
+        return None
+    if re.search(r"\b(pausa\w*|para\w*|det[eé]n\w*|deten\w*|stop|apaga\w*|quita\w*)\b", t):
+        return Pedido("musica", {"accion": "pausar"})
+    if re.search(r"\b(sigue|segui\w*|continua\w*|reanuda\w*|reproduce|play|resume)\b", t) and \
+            not re.search(r"\b(pon|ponme|busca\w*)\b", t) and len(t.split()) <= 5:
+        return Pedido("musica", {"accion": "seguir"})
+    return None
+
+
 def pedido_comando(original: str, t: str) -> Pedido | None:
     """«ejecuta caffeinate -d (en la terminal…)», «detén caffeinate», «qué comandos hay». El comando se toma del texto
     original (con mayúsculas y signos); si se ejecuta o no lo decide la lista permitida, no esto."""
@@ -118,6 +141,9 @@ def pedido_apps(original: str, t: str) -> Pedido | None:
 def interpretar(texto: str) -> Pedido:
     original = quitar_saludo(texto)
     t = normalizar(original)
+    musica = pedido_musica(t)
+    if musica:
+        return musica
     comando = pedido_comando(original, t)
     if comando:
         return comando

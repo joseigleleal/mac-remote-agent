@@ -21,6 +21,7 @@ comandos de una lista que tú defines. Los comandos también aparecen en el men�
 |---|---|
 | «hola mac, qué perfiles hay» · `/perfiles` | Lista los perfiles de Chrome abiertos (los permitidos) |
 | «hola mac, pon bad bunny en spotify» · `/spotify bad bunny` | Si no dices el perfil y hay varios abiertos, pregunta con botones. Busca en la pestaña de Spotify de ese perfil (sin recargarla) y reproduce el primer resultado; si no hay pestaña, la abre en ese perfil |
+| «pausa spotify» · «sigue la música» · «siguiente canción» · «canción anterior» · `/musica pausa` | Controla la pestaña de Spotify que está sonando (busca en los perfiles abiertos, sin preguntar). «pausa» sola pausa el bot |
 | «hola mac, en mi perfil personal …» | Usa ese perfil (por su apodo en `.env`, su nombre o su carpeta) |
 | «sube el volumen» · «baja el volumen 20» · «volumen al 30» · «silencia» · «quita el silencio» · `/volumen 50` | Cambia el volumen de la Mac (de a 10 si no se dice cuánto) y dice cómo quedó |
 
@@ -71,7 +72,7 @@ compara y deduce de quién es cada ventana.
 | `mac/bot.py` | Bucle de long polling, autorización, pregunta del perfil con botones y respuesta | `Bot.atender`, `Bot.spotify`, `Bot.boton`, `quien` |
 | `mac/interprete.py` | Texto → `Pedido(accion, datos)` con reglas (sin tildes, quita «hola mac», el perfil y el «dale play») | `interpretar`, `consulta_musica` |
 | `mac/chrome.py` | Perfiles, perfiles abiertos, ventana de cada perfil, buscar pestaña, ejecutar JavaScript, abrir URL en un perfil | `perfiles`, `abiertos`, `resolver`, `ventanas`, `asignar_perfiles`, `buscar_pestana`, `ejecutar_js`, `abrir` |
-| `mac/spotify.py` | Búsqueda y play en la web de Spotify | `reproducir`, `sonando` |
+| `mac/spotify.py` | Búsqueda y play en la web de Spotify, y los botones de la barra (play/pausa, siguiente, anterior) | `reproducir`, `controlar`, `sonando` |
 | `mac/volumen.py` | Volumen y silencio de la Mac por AppleScript (`set volume`) | `estado`, `ajustar` |
 | `mac/comandos.py` | Comandos de la lista permitida, sin shell, en segundo plano; registro en `data/comandos.json` para verlos y detenerlos | `ejecutar`, `detener`, `corriendo`, `resumen` |
 | `mac/apps.py` | Apps abiertas (System Events, con bundle id), consumo por app (`ps` agrupado por `/X.app/`) y cerrar por bundle id | `abiertas`, `consumo`, `resumen_mac`, `cerrar`, `buscar` |

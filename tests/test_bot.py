@@ -72,6 +72,15 @@ class Interprete(unittest.TestCase):
             pedido = interpretar(frase)
             self.assertEqual((pedido.accion, pedido.datos), ("volumen", datos), frase)
 
+    def test_controles_de_musica(self):
+        casos = {"pausa spotify": "pausar", "detén la música": "pausar", "sigue la música": "seguir",
+                 "siguiente canción": "siguiente", "canción anterior": "anterior", "/musica sigue": "seguir"}
+        for frase, accion in casos.items():
+            pedido = interpretar(frase)
+            self.assertEqual((pedido.accion, pedido.datos), ("musica", {"accion": accion}), frase)
+        self.assertEqual(interpretar("pausa").accion, "pausar")  # sola, pausa el bot
+        self.assertEqual(interpretar("qué pasa con la música").accion, "ayuda")  # «pasa» no es «siguiente»
+
     def test_otros_pedidos(self):
         self.assertEqual(interpretar("hola mac, qué perfiles hay").accion, "perfiles")
         self.assertEqual(interpretar("hola mac, ¿cómo estás?").accion, "ayuda")

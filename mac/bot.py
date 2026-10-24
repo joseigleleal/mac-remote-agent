@@ -18,6 +18,7 @@ from mac.interprete import Pedido, interpretar
 AYUDA = """Hola 👋 Soy tu Mac. Puedo:
 · ver qué perfiles de Chrome tienes abiertos: «hola mac, qué perfiles hay»
 · buscar y reproducir en Spotify: «pon bad bunny en spotify» o «en mi perfil personal pon karol g»
+· la música: «pausa spotify», «sigue la música», «siguiente canción», «canción anterior»
 · el volumen: «sube el volumen», «baja el volumen 20», «volumen al 30», «silencia», «quita el silencio»
 · comandos de tu lista permitida: «ejecuta caffeinate -d» (en segundo plano) o «ejecuta caffeinate -d en la
   terminal de pycharm» (también intellij o iterm, para verlo), «detén caffeinate», «qué comandos hay»
@@ -33,6 +34,7 @@ OFFSET = DATA_DIR / "offset"  # último update atendido: un reinicio nunca repit
 MENU = [("estado", "Cuánto consume el bot y cómo está la Mac"), ("consumo", "Qué está consumiendo más"),
         ("apps", "Apps abiertas y su consumo"), ("cerrar", "Cerrar una app: /cerrar pycharm"),
         ("perfiles", "Perfiles de Chrome abiertos"), ("spotify", "Buscar y reproducir: /spotify bad bunny"),
+        ("musica", "Spotify: /musica pausa · sigue · siguiente · anterior"),
         ("volumen", "Volumen: /volumen 30"), ("comandos", "Comandos permitidos y los que corren"),
         ("ejecutar", "Ejecutar un comando permitido: /ejecutar caffeinate -d"),
         ("detener", "Detener un comando: /detener caffeinate"), ("pausar", "No hacer nada hasta /reanudar"),
@@ -86,6 +88,11 @@ class Bot:
         log(f"pedido: «{texto[:200]}» → {pedido.accion} {pedido.datos}")
         if servicio.pausado() and pedido.accion not in EN_PAUSA:
             self.decir(chat, "⏸️ Estoy en pausa. Dime «prende» para volver.")
+        elif pedido.accion == "musica":
+            try:
+                self.decir(chat, spotify.controlar(pedido.datos["accion"]))
+            except chrome.ChromeError as e:
+                self.decir(chat, f"⚠️ {e}")
         elif pedido.accion == "estado":
             self.decir(chat, servicio.recursos())
         elif pedido.accion == "pausar":

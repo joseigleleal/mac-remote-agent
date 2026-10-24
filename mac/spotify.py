@@ -105,3 +105,43 @@ def sonando(pestana: tuple[int, int]) -> str:
         return ""
     cancion = re.sub(r"^[^:]*:\s*", "", estado.get("cancion") or "")  # quita «Estás escuchando:»
     return cancion or "Sonando"
+
+
+# --- Controles de la barra inferior (pausa, seguir, siguiente, anterior) ---------------------------------------
+BOTONES = {"siguiente": "control-button-skip-forward", "anterior": "control-button-skip-back"}
+JS_CLIC = """(function (id) {
+  var b = document.querySelector('[data-testid="' + id + '"]');
+  if (!b) return "sin-boton";
+  b.click();
+  return "ok";
+})(%s)"""
+
+
+def pestanas_abiertas() -> list[tuple[int, int]]:
+    """Pestañas de Spotify en los perfiles abiertos y permitidos."""
+    salida = []
+    for v in chrome.ventanas():
+        if v.perfil and chrome.permitido(v.perfil):
+            salida += [(v.id, i) for i, url in enumerate(v.urls, 1) if DOMINIO in url]
+    return salida
+
+
+def controlar(accion: str) -> str:
+    """accion: pausar · seguir · siguiente · anterior. Usa la pestaña que está sonando (o la primera que haya)."""
+    pestanas = pestanas_abiertas()
+    if not pestanas:
+        return "No hay ninguna pestaña de Spotify abierta. Dime «pon <algo> en spotify»."
+    pestana = next((p for p in pestanas if sonando(p)), pestanas[0])
+    antes = sonando(pestana)
+    if accion == "pausar" and not antes:
+        return "⏸️ Spotify ya estaba en pausa."
+    if accion == "seguir" and antes:
+        return f"▶️ Ya está sonando: {antes}."
+    boton = BOTONES.get(accion, "control-button-playpause")
+    if chrome.ejecutar_js(*pestana, JS_CLIC % json.dumps(boton)) != "ok":
+        return "No encontré el botón en la pestaña de Spotify (¿cambió la página?)."
+    if accion == "pausar":
+        return "⏸️ Spotify en pausa." if esperar(lambda: not sonando(pestana), segundos=4) else \
+            "Le di pausa, pero sigue sonando."
+    ahora = esperar(lambda: (lambda e: e if e and e != antes else "")(sonando(pestana)), segundos=6)
+    return f"▶️ {ahora or sonando(pestana) or 'Sin cambios'}."
