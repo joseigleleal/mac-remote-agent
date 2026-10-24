@@ -11,8 +11,9 @@ import argparse
 import time
 from datetime import datetime
 
-from mac import telegram
+from mac import chrome, telegram
 from mac.config import lista
+from mac.interprete import interpretar
 
 AYUDA = """Hola 👋 Soy tu Mac. Puedo:
 · ver qué perfiles de Chrome tienes abiertos: «hola mac, qué perfiles hay»
@@ -49,8 +50,12 @@ class Bot:
             self.mensaje(chat, texto)
 
     def mensaje(self, chat, texto: str) -> None:
-        log(f"pedido: {texto[:120]}")
-        telegram.enviar(chat, AYUDA)
+        pedido = interpretar(texto)
+        log(f"pedido: {pedido.accion} {pedido.datos}")
+        if pedido.accion == "perfiles":
+            telegram.enviar(chat, texto_perfiles())
+        else:
+            telegram.enviar(chat, AYUDA)
 
     def boton(self, chat, q: dict) -> None:
         telegram.responder_boton(q["id"])
@@ -70,6 +75,15 @@ class Bot:
                     self.atender(u)
                 except Exception as e:  # un pedido que falla no tumba al bot
                     log(f"error atendiendo: {type(e).__name__}: {e}")
+
+
+def texto_perfiles() -> str:
+    if not chrome.esta_corriendo():
+        return "Chrome está cerrado."
+    abiertos = chrome.abiertos()
+    if not abiertos:
+        return "No hay perfiles abiertos que pueda usar."
+    return "Perfiles abiertos en Chrome:\n" + "\n".join(f"· {p.etiqueta}" for p in abiertos)
 
 
 def quien() -> None:
