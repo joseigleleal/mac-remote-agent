@@ -4,7 +4,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 
-ACCIONES = ("avisos", "login", "musica", "estado", "pausar", "reanudar", "apagar", "comando", "detener", "comandos", "apps", "consumo", "cerrar",
+ACCIONES = ("claude", "avisos", "login", "musica", "estado", "pausar", "reanudar", "apagar", "comando", "detener", "comandos", "apps", "consumo", "cerrar",
             "perfiles", "volumen", "spotify", "ayuda")
 
 VERBOS_MUSICA = r"\b(busca\w*|busque\w*|pon|ponme|ponle|pongas|reproduc\w*|toca|tocame|escuch\w*|play)\b"
@@ -152,6 +152,9 @@ def pedido_apps(original: str, t: str) -> Pedido | None:
 def interpretar(texto: str) -> Pedido:
     original = quitar_saludo(texto)
     t = normalizar(original)
+    if t.startswith("/claude") or re.search(r"\bque (haces|estas haciendo|dijiste|hiciste)\b", t) or \
+            re.search(r"\bcomo va claude\b", t):
+        return Pedido("claude")
     m = re.match(r"^/?avisos?(?: de | |_)claude\s*(on|off|si|no|activa\w*|apaga\w*|silencia\w*)?$", t)
     if m:
         valor = m.group(1) or ""

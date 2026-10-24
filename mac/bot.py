@@ -11,14 +11,15 @@ import argparse
 import time
 from datetime import datetime
 
-from mac import apps, chrome, claude_aviso, comandos, login, servicio, spotify, telegram, volumen
+from mac import apps, chrome, claude_aviso, claude_puente, comandos, login, servicio, spotify, telegram, volumen
 from mac.config import DATA_DIR, lista
 from mac.interprete import Pedido, interpretar
 
 AYUDA = """Hola 👋 Soy tu Mac. Puedo:
 · ver qué perfiles de Chrome tienes abiertos: «hola mac, qué perfiles hay»
 · buscar y reproducir en Spotify: «pon bad bunny en spotify» o «en mi perfil personal pon karol g»
-· avisos de Claude Code: «avisos claude off» / «avisos claude on» (los manda un hook al terminar o pedir algo)
+· Claude Code: «qué haces» (/claude); «avisos claude on» = modo fuera: te aviso, me respondes respondiendo al aviso
+  o con «claude: …», y sus preguntas llegan con botones. «avisos claude off» al volver a la Mac
 · sesiones vencidas: «reautentica <sitio>» (/login) rellena el login con los datos de tu .env
 · la música: «pausa spotify», «sigue la música», «siguiente canción», «canción anterior»
 · el volumen: «sube el volumen», «baja el volumen 20», «volumen al 30», «silencia», «quita el silencio»
@@ -29,7 +30,7 @@ AYUDA = """Hola 👋 Soy tu Mac. Puedo:
 · el bot: «cuánto consumes» (/estado), «pausa» y «prende» (/pausar, /reanudar), «apágate del todo» (/apagar)
 El «hola mac» es opcional. Si no me dices el perfil, te pregunto con botones."""
 
-EN_PAUSA = ("estado", "reanudar", "apagar", "ayuda")  # lo único que atiende en pausa
+EN_PAUSA = ("estado", "reanudar", "apagar", "ayuda", "claude", "avisos")  # lo único que atiende en pausa
 OFFSET = DATA_DIR / "offset"  # último update atendido: un reinicio nunca repite un mensaje ni un botón (ej. apagar)
 
 # Menú de Telegram (al escribir «/»). También se le puede hablar con frases: ver AYUDA.
@@ -38,7 +39,8 @@ MENU = [("estado", "Cuánto consume el bot y cómo está la Mac"), ("consumo", "
         ("perfiles", "Perfiles de Chrome abiertos"), ("spotify", "Buscar y reproducir: /spotify bad bunny"),
         ("musica", "Spotify: /musica pausa · sigue · siguiente · anterior"),
         ("login", "Volver a iniciar sesión: /login <sitio>"),
-        ("avisos_claude", "Avisos de Claude Code: /avisos_claude on · off"),
+        ("claude", "Qué está haciendo Claude Code"),
+        ("avisos_claude", "Modo fuera con Claude Code: /avisos_claude on · off"),
         ("volumen", "Volumen: /volumen 30"), ("comandos", "Comandos permitidos y los que corren"),
         ("ejecutar", "Ejecutar un comando permitido: /ejecutar caffeinate -d"),
         ("detener", "Detener un comando: /detener caffeinate"), ("pausar", "No hacer nada hasta /reanudar"),
@@ -80,8 +82,25 @@ class Bot:
         if not autorizado(chat):
             log(f"ignorado: mensaje de un chat no autorizado ({chat})")
             return
+        if texto and self.para_claude(chat, msg, texto):
+            return
         if texto:
             self.mensaje(chat, texto)
+
+    def para_claude(self, chat, msg: dict, texto: str) -> bool:
+        """Respuesta a una pregunta de Claude, respuesta a un aviso o «claude: …» → a la sesión de Claude Code."""
+        citado = (msg.get("reply_to_message") or {}).get("message_id")
+        pregunta = claude_puente.pregunta_de(citado)
+        if pregunta:
+            claude_puente.dejar_respuesta(pregunta, texto)
+        elif claude_puente.es_alerta(citado) or texto.lower().startswith("claude:"):
+            claude_puente.dejar_mensaje(texto.split(":", 1)[1].strip() if texto.lower().startswith("claude:") else texto)
+        else:
+            return False
+        log("mensaje para Claude Code")
+        self.decir(chat, "📨 Se lo paso a Claude." + ("" if claude_puente.fuera() else
+                         " Ojo: el modo fuera está apagado («avisos claude on»), no lo va a recibir."))
+        return True
 
     def decir(self, chat, texto: str, botones: dict | None = None) -> None:
         log(f"respuesta: {texto[:200]}")
@@ -92,6 +111,8 @@ class Bot:
         log(f"pedido: «{texto[:200]}» → {pedido.accion} {pedido.datos}")
         if servicio.pausado() and pedido.accion not in EN_PAUSA:
             self.decir(chat, "⏸️ Estoy en pausa. Dime «prende» para volver.")
+        elif pedido.accion == "claude":
+            self.decir(chat, claude_puente.que_haces())
         elif pedido.accion == "avisos":
             activar = pedido.datos["activar"]
             if activar is True:
@@ -225,6 +246,11 @@ class Bot:
         log(f"botón: {q.get('data')}")
         telegram.responder_boton(q["id"])
         dato, mid = q.get("data", ""), (q.get("message") or {}).get("message_id")
+        if dato.startswith("cq:"):
+            _, pid, opcion = dato.split(":", 2)
+            claude_puente.dejar_respuesta(pid, opcion)
+            telegram.editar(chat, mid, ((q.get("message") or {}).get("text") or "") + "\n\n✅ Respuesta enviada a Claude.")
+            return
         if dato.startswith("login:"):
             telegram.editar(chat, mid, f"Iniciando sesión en {dato[6:]}…")
             self.login(chat, dato[6:])
