@@ -1,8 +1,9 @@
 # mac-remote-agent
 
-Un agente que maneja tu Mac a distancia desde Telegram. Le hablas como «hola mac, …» (el saludo es opcional) y hace
-cosas en tu Mac: le escribes «hola mac, en mi perfil personal pon bad bunny en
-spotify» y lo hace en tu Chrome, con tus sesiones ya iniciadas y en la pestaña que ya tenías abierta.
+Un agente que maneja tu Mac a distancia desde Telegram. Le escribes «hola mac, en mi perfil personal pon bad bunny
+en spotify» (el saludo es opcional) y lo hace en tu Chrome, con tus sesiones ya iniciadas y en la pestaña que ya
+tenías abierta. También ve qué apps tienes abiertas y qué consume más, cierra apps, cambia el volumen y corre
+comandos de una lista que tú defines. Los comandos también aparecen en el menú «/» de Telegram.
 
 > Antes de usarlo o adaptarlo, lee [Uso responsable](USO_RESPONSABLE.md): quien controla el bot controla la Mac.
 
@@ -131,6 +132,8 @@ compara y deduce de quién es cada ventana.
   Accesibilidad exige otro permiso y depende del idioma; el archivo de sesión ya está ahí y solo se lee.
 - **Reglas antes que un modelo:** para pocas acciones, unas reglas son instantáneas, gratis, sin red y se
   prueban. Un modelo tiene sentido cuando las acciones crezcan.
+- **El último mensaje atendido se guarda en disco** (`data/offset`) antes de actuar: si una acción tumba el bot
+  (apagar) o launchd lo reinicia, al volver no repite el mismo mensaje ni el mismo botón.
 - **Long polling y no webhook:** no hace falta abrir puertos ni un servidor público; la Mac pregunta a Telegram.
 - **Comandos solo de una lista exacta, sin shell:** «ejecuta X» por Telegram es lo más riesgoso del bot. Solo
   corre lo que está tal cual en `COMANDOS_PERMITIDOS`, con `shlex.split` y sin shell (no hay `|`, `;` ni `&&` que

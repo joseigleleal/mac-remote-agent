@@ -12,7 +12,7 @@ import time
 from datetime import datetime
 
 from mac import apps, chrome, comandos, servicio, spotify, telegram, volumen
-from mac.config import lista
+from mac.config import DATA_DIR, lista
 from mac.interprete import Pedido, interpretar
 
 AYUDA = """Hola 👋 Soy tu Mac. Puedo:
@@ -27,6 +27,17 @@ AYUDA = """Hola 👋 Soy tu Mac. Puedo:
 El «hola mac» es opcional. Si no me dices el perfil, te pregunto con botones."""
 
 EN_PAUSA = ("estado", "reanudar", "apagar", "ayuda")  # lo único que atiende en pausa
+OFFSET = DATA_DIR / "offset"  # último update atendido: un reinicio nunca repite un mensaje ni un botón (ej. apagar)
+
+# Menú de Telegram (al escribir «/»). También se le puede hablar con frases: ver AYUDA.
+MENU = [("estado", "Cuánto consume el bot y cómo está la Mac"), ("consumo", "Qué está consumiendo más"),
+        ("apps", "Apps abiertas y su consumo"), ("cerrar", "Cerrar una app: /cerrar pycharm"),
+        ("perfiles", "Perfiles de Chrome abiertos"), ("spotify", "Buscar y reproducir: /spotify bad bunny"),
+        ("volumen", "Volumen: /volumen 30"), ("comandos", "Comandos permitidos y los que corren"),
+        ("ejecutar", "Ejecutar un comando permitido: /ejecutar caffeinate -d"),
+        ("detener", "Detener un comando: /detener caffeinate"), ("pausar", "No hacer nada hasta /reanudar"),
+        ("reanudar", "Volver a atender pedidos"), ("apagar", "Apagar del todo (se prende desde la Mac)"),
+        ("ayuda", "Qué sé hacer")]
 
 
 def log(texto: str) -> None:
@@ -39,11 +50,19 @@ def autorizado(chat_id) -> bool:
 
 class Bot:
     def __init__(self):
-        self.offset = None
+        try:
+            self.offset = int(OFFSET.read_text())
+        except (OSError, ValueError):
+            self.offset = None
         self.pendiente: dict[str, Pedido] = {}  # chat → pedido que espera que se elija el perfil
 
     def atender(self, update: dict) -> None:
         self.offset = update["update_id"] + 1
+        try:  # antes de actuar: si la acción tumba el bot (apagar), al volver no se repite
+            DATA_DIR.mkdir(exist_ok=True)
+            OFFSET.write_text(str(self.offset))
+        except OSError:
+            pass
         if "callback_query" in update:
             q = update["callback_query"]
             chat = (q.get("message") or {}).get("chat", {}).get("id")
@@ -196,6 +215,7 @@ class Bot:
     def correr(self) -> None:
         if not lista("TELEGRAM_CHAT_ID"):
             log("TELEGRAM_CHAT_ID está vacío: no obedezco a nadie (ver .env.example)")
+        telegram.llamar("setMyCommands", {"commands": [{"command": c, "description": d} for c, d in MENU]})
         log("escuchando")
         while True:
             updates = telegram.actualizaciones(self.offset)

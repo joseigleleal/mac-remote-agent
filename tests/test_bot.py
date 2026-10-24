@@ -13,6 +13,15 @@ from mac.interprete import interpretar
 PERSONAL, ESTUDIO = Perfil("Default", "Ana", "personal"), Perfil("Profile 4", "estudio")
 
 
+def setUpModule():
+    """Ninguna prueba escribe el offset real del bot (data/offset)."""
+    import tempfile
+    from pathlib import Path
+    p = mock.patch.object(bot, "OFFSET", Path(tempfile.mkdtemp()) / "offset")
+    p.start()
+    unittest.addModuleCleanup(p.stop)
+
+
 def mensaje(chat: int, texto: str, update_id: int = 1) -> dict:
     return {"update_id": update_id, "message": {"chat": {"id": chat}, "text": texto}}
 
@@ -80,6 +89,11 @@ class Servicio(unittest.TestCase):
         p = mock.patch.object(bot.telegram, "enviar")
         self.enviar = p.start()
         self.addCleanup(p.stop)
+
+    def test_el_offset_sobrevive_al_reinicio(self):
+        with mock.patch.object(bot, "OFFSET", self.tmp / "offset"):
+            bot.Bot().atender(mensaje(111, "estado", update_id=41))
+            self.assertEqual(bot.Bot().offset, 42)  # un bot nuevo no vuelve a pedir el 41
 
     def test_frases(self):
         for frase, accion in {"cuánto consumes": "estado", "/estado": "estado", "hola mac, pausa": "pausar",

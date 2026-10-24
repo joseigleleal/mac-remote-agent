@@ -7,7 +7,7 @@ LIMITE = 4000  # Telegram corta en 4096 caracteres
 ultimo_error = ""  # motivo del último fallo (sin el token, que va en la URL)
 
 
-def llamar(metodo: str, datos: dict | None = None, timeout: int = 30) -> dict | list | None:
+def llamar(metodo: str, datos: dict | None = None, timeout: int = 10) -> dict | list | None:
     """Llama a un método de la API. Devuelve el `result` de Telegram, o None si falla."""
     global ultimo_error
     token = env("TELEGRAM_BOT_TOKEN")
