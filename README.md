@@ -152,3 +152,8 @@ tail -f data/bot.log                      # qué está haciendo
 - Las reglas entienden frases parecidas a los ejemplos; una frase muy distinta cae en la ayuda.
 - El perfil de una ventana se deduce de su archivo de sesión: una ventana recién abierta puede tardar unos
   segundos en reconocerse.
+
+## Licencia
+
+[MIT](LICENSE): puedes usarlo, copiarlo y adaptarlo, también con fines comerciales, manteniendo el aviso de
+licencia. Se entrega sin garantía; el uso debe respetar las reglas de [Uso responsable](USO_RESPONSABLE.md).
