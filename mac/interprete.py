@@ -4,7 +4,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 
-ACCIONES = ("abrir", "buscar", "primero", "wa_chats", "wa_exporta", "wa_excluye", "claude", "avisos", "login", "musica", "estado", "pausar", "reanudar", "apagar", "comando", "detener", "comandos", "apps", "consumo", "cerrar",
+ACCIONES = ("eco", "abrir", "buscar", "primero", "wa_chats", "wa_exporta", "wa_excluye", "claude", "avisos", "login", "musica", "estado", "pausar", "reanudar", "apagar", "comando", "detener", "comandos", "apps", "consumo", "cerrar",
             "perfiles", "volumen", "spotify", "ayuda")
 
 VERBOS_MUSICA = r"\b(busca\w*|busque\w*|pon|ponme|ponle|pongas|reproduc\w*|toca|tocame|escuch\w*|play)\b"
@@ -174,13 +174,16 @@ def pedido_web(t: str) -> Pedido | None:
 def interpretar(texto: str) -> Pedido:
     original = quitar_saludo(texto)
     t = normalizar(original)
+    m = re.match(r"^/?eco\b(?:\s*\(([^)]*)\))?\s*[:,]?\s*(.+)$", original, re.I | re.S)
+    if m:  # el mensaje va tal cual (con tildes y mayúsculas): es lo que te escribieron
+        return Pedido("eco", {"mensaje": m.group(2).strip(), "chat": (m.group(1) or "").strip()})
     web = pedido_web(t)
     if web:
         return web
     m = re.match(r"^/?(exporta\w*|excluye|excluir)\s+(?:(?:el|la|los|las|mi|mis|chats?|de|con|del)\s+)*(.+)$", t)
     if m:
         accion = "wa_exporta" if m.group(1).startswith("export") else "wa_excluye"
-        return Pedido(accion, {"valor": re.sub(r"(\s+(chats?|al azar))+\s*$", "", m.group(2)).strip()})
+        return Pedido(accion, {"valor": re.sub(r"(\s+(chats?|al azar|de (la|whatsapp|wasap)|app))+\s*$", "", m.group(2)).strip()})
     if t in ("chats", "/chats") or re.search(r"\b(mis|que) chats\b", t):
         return Pedido("wa_chats")
     if t.startswith("/claude") or re.search(r"\bque (haces|estas haciendo|dijiste|hiciste)\b", t) or \

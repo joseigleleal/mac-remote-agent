@@ -7,7 +7,7 @@ Lee la base local de la app (ChatStorage.sqlite, solo lectura y sobre una copia 
   Teléfonos, correos y enlaces se reemplazan. Nada sale de la Mac: queda en data/whatsapp/ (fuera de git).
 
     python -m mac.whatsapp chats              # tus chats con más mensajes tuyos
-    python -m mac.whatsapp exporta <nombre>   # o «exporta 5» para 5 al azar
+    python -m mac.whatsapp exporta <nombre>   # o «exporta 5» para 5 al azar, «exporta recientes 50» los primeros de la app
 """
 import argparse
 import json
@@ -15,6 +15,7 @@ import random
 import re
 import shutil
 import sqlite3
+import subprocess
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -25,6 +26,7 @@ from mac.interprete import normalizar
 BASE = Path.home() / "Library/Group Containers/group.net.whatsapp.WhatsApp.shared/ChatStorage.sqlite"
 CARPETA = DATA_DIR / "whatsapp"
 EXCLUIDOS = CARPETA / "excluidos.json"
+COPIA_MAX = 20  # segundos
 EPOCA_APPLE = datetime(2001, 1, 1)  # las fechas de la base son segundos desde 2001
 LIMPIAR = [(re.compile(r"https?://\S+"), "<enlace>"), (re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+"), "<correo>"),
            (re.compile(r"\+?\d[\d\s-]{7,}\d"), "<teléfono>")]
@@ -41,16 +43,21 @@ class Conexion(sqlite3.Connection):
 
 def conectar() -> sqlite3.Connection:
     """Copia la base (con su -wal) a una carpeta temporal y la abre en solo lectura."""
-    if not BASE.exists():
-        raise WhatsAppError("No encuentro la base de la app de WhatsApp en esta Mac (¿está instalada y con sesión?).")
     tmp = Path(tempfile.mkdtemp(prefix="wa-"))
+    # Todo acceso a la carpeta de WhatsApp va en un proceso aparte con tope de tiempo: mientras macOS espera que
+    # apruebes el permiso («datos de otras apps»), hasta listar la carpeta se queda colgado, y el bot no debe.
     try:
-        for archivo in BASE.parent.glob(BASE.name + "*"):
-            shutil.copy2(archivo, tmp / archivo.name)
-    except PermissionError:
+        r = subprocess.run(["/bin/sh", "-c", 'cp -p "$1"* "$2"', "sh", str(BASE), str(tmp)],
+                           capture_output=True, text=True, timeout=COPIA_MAX)
+    except subprocess.TimeoutExpired:
+        r = None
+    if r is None or r.returncode != 0:
         shutil.rmtree(tmp, ignore_errors=True)
+        if r is not None and "No such file" in r.stderr:
+            raise WhatsAppError("No encuentro la base de la app de WhatsApp en esta Mac (¿está instalada y con sesión?).")
         raise WhatsAppError("macOS no deja leer los datos de WhatsApp. Permítelo en Ajustes → Privacidad y seguridad "
-                            "→ Acceso total al disco (o «Datos de otras apps») para la app que corre el bot.")
+                            "→ Acceso total al disco (o acepta en la Mac el aviso «quiere acceder a datos de otras "
+                            "apps») para la app que corre el bot.")
     con = sqlite3.connect(f"file:{tmp / BASE.name}?mode=ro", uri=True, factory=Conexion)
     con.row_factory = sqlite3.Row
     con.tmp = tmp  # para borrarla al cerrar
@@ -92,7 +99,8 @@ def chats(con: sqlite3.Connection) -> list[dict]:
     filas = con.execute("""
         SELECT c.Z_PK AS id, c.ZPARTNERNAME AS nombre,
                SUM(m.ZISFROMME = 1 AND m.ZMESSAGETYPE = 0 AND m.ZTEXT IS NOT NULL) AS mios,
-               SUM(m.ZISFROMME = 1 AND m.ZMESSAGETYPE = 2) AS audios, COUNT(m.Z_PK) AS total
+               SUM(m.ZISFROMME = 1 AND m.ZMESSAGETYPE = 2) AS audios, COUNT(m.Z_PK) AS total,
+               MAX(m.ZMESSAGEDATE) AS ultimo
         FROM ZWACHATSESSION c JOIN ZWAMESSAGE m ON m.ZCHATSESSION = c.Z_PK
         WHERE c.ZSESSIONTYPE = 0 GROUP BY c.Z_PK ORDER BY mios DESC""").fetchall()
     return [dict(f) for f in filas if f["mios"] and permitido(f["nombre"])]
@@ -121,12 +129,20 @@ def pares(con: sqlite3.Connection, chat_id: int) -> list[dict]:
     return [p for p in salida if p["respuesta"]]
 
 
+RECIENTES = re.compile(r"^(?:los\s+)?(?:(?:recientes|primeros|ultimos)\s+(\d+)|(\d+)\s+(?:recientes|primeros|ultimos))$")
+
+
 def exportar(pedido: str) -> str:
-    """«<nombre>» exporta ese chat; «<n>» exporta n chats al azar (de los que más mensajes tuyos tienen)."""
+    """«<nombre>» exporta ese chat; «<n>» exporta n chats al azar (de los que más mensajes tuyos tienen);
+    «recientes <n>» los n primeros de la lista de la app (los de conversación más reciente)."""
     con = conectar()
     try:
         disponibles = chats(con)
-        if pedido.strip().isdigit():
+        recientes = RECIENTES.match(normalizar(pedido))
+        if recientes:
+            n = int(recientes.group(1) or recientes.group(2))
+            elegidos = sorted(disponibles, key=lambda c: c["ultimo"] or 0, reverse=True)[:n]
+        elif pedido.strip().isdigit():
             elegidos = random.sample(disponibles[:60], min(int(pedido), len(disponibles[:60])))
         else:
             n = normalizar(pedido)
@@ -158,7 +174,8 @@ def resumen(n: int = 15) -> str:
     filas = [f"· {c['nombre']}: {c['mios']} tuyos" + (f", {c['audios']} audios" if c["audios"] else "")
              for c in lista_c[:n]]
     return (f"💬 Tus chats uno a uno con más mensajes tuyos ({len(lista_c)} permitidos):\n" + "\n".join(filas) +
-            "\n\n«exporta <nombre>», «exporta 5» (al azar) o «excluye <nombre>» (p. ej. los del trabajo).")
+            "\n\n«exporta <nombre>», «exporta 5» (al azar), «exporta recientes 50» o «excluye <nombre>» (p. ej. los del "
+            "trabajo).")
 
 
 def main() -> None:
@@ -166,12 +183,15 @@ def main() -> None:
     parser.add_argument("accion", choices=["chats", "exporta", "excluye"])
     parser.add_argument("valor", nargs="?", default="")
     args = parser.parse_args()
-    if args.accion == "chats":
-        print(resumen())
-    elif args.accion == "exporta":
-        print(exportar(args.valor or "5"))
-    else:
-        print("Excluidos:", excluir(args.valor))
+    try:
+        if args.accion == "chats":
+            print(resumen())
+        elif args.accion == "exporta":
+            print(exportar(args.valor or "5"))
+        else:
+            print("Excluidos:", excluir(args.valor))
+    except WhatsAppError as e:
+        raise SystemExit(f"⚠️ {e}")
 
 
 if __name__ == "__main__":

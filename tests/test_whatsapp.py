@@ -54,10 +54,20 @@ class WhatsApp(unittest.TestCase):
         self.assertEqual(filas[1]["respuesta"], "mi cel <teléfono>")
         self.assertIn("No encontré", wa.exportar("jefe"))  # excluido
 
+    def test_exporta_los_mas_recientes(self):
+        self.assertIn("Ana: 2 mensajes tuyos", wa.exportar("recientes 50"))  # sin el excluido ni el grupo
+        self.assertIn("Total exportado: 1", wa.exportar("los 2 primeros"))
+
     def test_frases(self):
         self.assertEqual(interpretar("exporta el chat de Ana").datos, {"valor": "ana"})
         self.assertEqual(interpretar("exporta 5 chats al azar").datos, {"valor": "5"})
+        self.assertEqual(interpretar("exporta los primeros 50 chats de la app").datos, {"valor": "primeros 50"})
         self.assertEqual(interpretar("excluye trabajo").accion, "wa_excluye")
+
+    def test_eco_pasa_el_mensaje_tal_cual(self):
+        self.assertEqual(interpretar("eco: ¿Vienes HOY a la casa?").datos, {"mensaje": "¿Vienes HOY a la casa?", "chat": ""})
+        self.assertEqual(interpretar("/eco (Ana) busca el cine").datos, {"mensaje": "busca el cine", "chat": "Ana"})
+        self.assertNotEqual(interpretar("económico").accion, "eco")
         self.assertEqual(interpretar("mis chats").accion, "wa_chats")
 
 

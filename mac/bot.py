@@ -11,8 +11,8 @@ import argparse
 import time
 from datetime import datetime
 
-from mac import (apps, chrome, claude_aviso, claude_puente, comandos, login, servicio, spotify, telegram, volumen, web,
-                 whatsapp)
+from mac import (apps, chrome, claude_aviso, claude_puente, comandos, eco, login, servicio, spotify, telegram, volumen,
+                 web, whatsapp)
 from mac.config import DATA_DIR, lista
 from mac.interprete import Pedido, interpretar
 
@@ -22,7 +22,8 @@ AYUDA = """Hola 👋 Soy tu Mac. Puedo:
 · buscar y reproducir en Spotify: «pon bad bunny en spotify» o «en mi perfil personal pon karol g»
 · Claude Code: «qué haces» (/claude); «avisos claude on» = modo fuera: te aviso, me respondes respondiendo al aviso
   o con «claude: …», y sus preguntas llegan con botones. «avisos claude off» al volver a la Mac
-· WhatsApp para tu clon: «chats», «exporta <nombre>», «exporta 5» (al azar), «excluye <nombre>»
+· WhatsApp para tu clon: «chats», «exporta <nombre>», «exporta 5» (al azar), «exporta recientes 50», «excluye <nombre>»
+· tu clon: «eco: <mensaje que te mandaron>» (o «eco (Ana): …») y te sugiero cómo responderías tú
 · sesiones vencidas: «reautentica <sitio>» (/login) rellena el login con los datos de tu .env
 · la música: «pausa spotify», «sigue la música», «siguiente canción», «canción anterior»
 · el volumen: «sube el volumen», «baja el volumen 20», «volumen al 30», «silencia», «quita el silencio»
@@ -45,7 +46,8 @@ MENU = [("estado", "Cuánto consume el bot y cómo está la Mac"), ("consumo", "
         ("login", "Volver a iniciar sesión: /login <sitio>"),
         ("claude", "Qué está haciendo Claude Code"),
         ("chats", "Tus chats de WhatsApp con más mensajes tuyos"),
-        ("exporta", "Exportar chats para tu clon: /exporta Juan · /exporta 5"),
+        ("exporta", "Exportar chats para tu clon: /exporta Juan · /exporta recientes 50"),
+        ("eco", "Cómo responderías: /eco ¿vienes hoy?"),
         ("avisos_claude", "Modo fuera con Claude Code: /avisos_claude on · off"),
         ("volumen", "Volumen: /volumen 30"), ("comandos", "Comandos permitidos y los que corren"),
         ("ejecutar", "Ejecutar un comando permitido: /ejecutar caffeinate -d"),
@@ -142,6 +144,9 @@ class Bot:
                         pedido.datos["valor"])))
             except whatsapp.WhatsAppError as e:
                 self.decir(chat, f"⚠️ {e}")
+        elif pedido.accion == "eco":
+            telegram.enviar(chat, "✍️ Pensando cómo lo dirías…")
+            self.decir(chat, eco.sugerir(pedido.datos["mensaje"], pedido.datos["chat"]))
         elif pedido.accion == "claude":
             self.decir(chat, claude_puente.que_haces())
         elif pedido.accion == "avisos":
