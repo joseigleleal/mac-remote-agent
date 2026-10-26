@@ -1,15 +1,21 @@
-"""Puente entre Telegram y una sesión de Claude Code, con hooks. Solo actúa en «modo fuera» (avisos encendidos).
+"""Puente entre Telegram y una sesión de Claude Code, con hooks.
+
+Dos modos (en el PC siempre ves todo; esto es solo lo que va a Telegram):
+- A pedido (por defecto, «avisos claude off»): Telegram no recibe nada solo. «claude: …» (o responder a un mensaje
+  suyo) le llega a Claude, y solo su respuesta a ese mensaje vuelve a Telegram. «qué haces» muestra lo último.
+- Modo fuera («avisos claude on»): además avisa cada vez que Claude termina o necesita algo, y sus preguntas con
+  opciones llegan con botones.
 
 Hooks (en .claude/settings.local.json del proyecto donde corre la sesión):
     Stop          (async + asyncRewake)  python -m mac.claude_puente stop
     Notification  (async)                python -m mac.claude_puente aviso
     PreToolUse    matcher AskUserQuestion python -m mac.claude_puente pregunta
 
-- stop: avisa que Claude terminó (con el comienzo de su respuesta) y espera hasta ESPERA_STOP un mensaje tuyo por
-  Telegram (respondiendo a ese aviso o con «claude: …»). Si llega, sale con código 2 y el texto en stderr: Claude
-  Code despierta a Claude con ese mensaje y sigue trabajando.
-- pregunta: cuando Claude te pregunta con opciones, las manda con botones y espera hasta ESPERA_PREGUNTA. Lo que
-  elijas vuelve como respuesta (updatedInput.answers); si no contestas a tiempo, la pregunta sale en la consola.
+- stop: si el turno respondía a un mensaje de Telegram (o en modo fuera), manda la respuesta. Luego espera hasta
+  ESPERA_STOP un mensaje tuyo por Telegram («claude: …» o respondiendo a un mensaje suyo). Si llega, sale con
+  código 2 y el texto en stderr: Claude Code despierta a Claude con ese mensaje y sigue trabajando.
+- pregunta (solo modo fuera): cuando Claude te pregunta con opciones, las manda con botones y espera hasta
+  ESPERA_PREGUNTA. Lo que elijas vuelve como respuesta (updatedInput.answers); si no, la pregunta sale en la consola.
 - El bot es quien recibe los mensajes de Telegram (solo de tu chat) y los deja en data/claude/: buzon.jsonl y
   respuestas/<id>. Los hooks solo leen esos archivos: nunca hablan con getUpdates (chocarían con el bot).
 """
@@ -29,6 +35,8 @@ RESPUESTAS = CARPETA / "respuestas"      # respuestas a preguntas con opciones (
 ALERTAS = CARPETA / "alertas.json"       # message_id de cada aviso → sesión (responder a un aviso = escribirle)
 PREGUNTAS = CARPETA / "preguntas.json"  # message_id de cada pregunta → id (responder escribiendo a una pregunta)
 TURNO = CARPETA / "turno"                # cambia en cada Stop: un hook viejo deja de esperar
+RESPONDER = CARPETA / "responder"        # el turno en curso responde a un mensaje de Telegram: su respuesta vuelve allá
+LARGO_RESPUESTA = 3800                   # Telegram admite 4096 caracteres por mensaje
 ESPERA_STOP = 30 * 60
 ESPERA_PREGUNTA = 5 * 60
 
@@ -106,29 +114,42 @@ def hook_aviso(evento: dict) -> None:
         telegram.enviar(chat(), texto_aviso(evento))
 
 
+def respuesta_completa(evento: dict) -> str:
+    """La última respuesta de Claude, entera (cortada al tope de un mensaje de Telegram)."""
+    texto = ultima_respuesta(evento.get("transcript_path") or "") or "✅ Listo (sin texto)."
+    return "🤖 Claude:\n\n" + (texto[:LARGO_RESPUESTA] + ("…\n(sigue en el PC)" if len(texto) > LARGO_RESPUESTA else ""))
+
+
 def hook_stop(evento: dict) -> None:
-    """Avisa y espera un mensaje tuyo. Con mensaje: exit 2 (Claude Code despierta a Claude con él)."""
-    if not fuera() or not chat():
+    """Responde a Telegram si el turno venía de allá (o en modo fuera, avisa siempre) y espera un mensaje tuyo.
+    Con mensaje: exit 2 (Claude Code despierta a Claude con él)."""
+    if not chat():
         return
     CARPETA.mkdir(parents=True, exist_ok=True)
     turno = uuid.uuid4().hex
     TURNO.write_text(turno)
     desde = time.time()
-    mid = telegram.enviar(chat(), texto_aviso(evento) + "\n\n↩️ Responde a este mensaje para escribirle a Claude.")
+    mid = None
+    if RESPONDER.exists():  # este turno respondía a un mensaje tuyo de Telegram: la respuesta vuelve allá
+        RESPONDER.unlink(missing_ok=True)
+        mid = telegram.enviar(chat(), respuesta_completa(evento) + "\n\n↩️ Responde a este mensaje para seguir.")
+    elif fuera():
+        mid = telegram.enviar(chat(), texto_aviso(evento) + "\n\n↩️ Responde a este mensaje para escribirle a Claude.")
     if mid:
         alertas = leer_json(ALERTAS, {})
         alertas[str(mid)] = evento.get("session_id", "")
         ALERTAS.write_text(json.dumps(dict(list(alertas.items())[-50:])))
     while time.time() - desde < ESPERA_STOP:
         time.sleep(3)
-        if TURNO.read_text() != turno or not fuera():  # llegó otro turno o volviste a la Mac
+        if TURNO.read_text() != turno:  # llegó otro turno: ese hook espera ahora
             return
         nuevos = [m for m in (json.loads(l) for l in BUZON.read_text().split("\n") if l.strip())
                   if m["t"] > desde] if BUZON.exists() else []
         if nuevos:
             texto = "\n".join(m["texto"] for m in nuevos)
-            print(f"Mensaje del usuario desde Telegram (está fuera de la Mac; contéstale breve, en español, y "
-                  f"sigue con lo que pide): {texto}", file=sys.stderr)
+            RESPONDER.write_text(str(time.time()))
+            print(f"Mensaje del usuario desde Telegram (contéstale breve, en español, y sigue con lo que pide; "
+                  f"tu respuesta le llega allá): {texto}", file=sys.stderr)
             sys.exit(2)
 
 

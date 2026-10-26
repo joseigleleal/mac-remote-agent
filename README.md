@@ -27,7 +27,7 @@ comandos de una lista que tú defines. Los comandos también aparecen en el men�
 | «chats» · «exporta <nombre>» · «exporta 5» · «exporta recientes 50» · «excluye <nombre>» | WhatsApp de la Mac para entrenar tu «clon»: lista tus chats uno a uno con más mensajes tuyos y exporta **solo tus mensajes** (con el mensaje anterior del otro como contexto, sin teléfonos, correos ni enlaces) a `data/whatsapp/`: uno por nombre, varios al azar o los primeros de la lista de la app (los más recientes). Sin grupos; los excluidos nunca se exportan. Si macOS no da el permiso en 20 s, avisa cuál falta en vez de colgarse |
 | «eco: <mensaje que te mandaron>» · «eco (Ana): …» · `/eco …` | Te sugiere cómo responderías tú, con tu forma de escribir aprendida de esos chats. Lo hace el agente `eco` de [personal-agents](https://github.com/joseigleleal/ai-personal-agents) (todo local, con Ollama); aquí solo se llama (`ECO_DIR`). Nunca envía nada |
 | «qué haces» · «qué dijiste» · `/claude` | Última acción y último mensaje de la sesión de Claude Code (lee el transcript) |
-| «avisos claude on / off» · `/avisos_claude` | Modo fuera con Claude Code: avisos, responderle y contestar sus preguntas desde Telegram (ver abajo) |
+| «claude: …» · «avisos claude on / off» · `/avisos_claude` | Claude Code desde Telegram: a pedido (solo te llega la respuesta a lo que le escribes) o modo fuera (avisos de todo y preguntas con botones). Ver abajo |
 | «abre youtube (en personal)» · «busca youtube» · `/abre …` | Abre la página (por nombre conocido, dirección o, si no, búsqueda en Google) en ese perfil; sin perfil, pregunta con botones. Reutiliza la pestaña si ya existe y queda como **la pestaña de la conversación** |
 | «busca …» (con una página abierta) · «pon el primero» | Busca dentro de esa página (dirección de búsqueda del sitio o su buscador) y, en YouTube, reproduce el primer resultado. Sin página abierta en los últimos 30 min, «busca …» va a Spotify |
 | «hola mac, en mi perfil personal …» | Usa ese perfil (por su apodo en `.env`, su nombre o su carpeta) |
@@ -149,19 +149,25 @@ compara y deduce de quién es cada ventana.
 - **Lenguaje natural más libre:** reemplaza `interpretar` por un modelo que devuelva el mismo `Pedido` (JSON con
   una acción de la lista). El resto no cambia.
 
-### Claude Code desde Telegram (modo fuera)
+### Claude Code desde Telegram (a pedido o modo fuera)
 
 Para seguir y guiar una sesión larga de Claude Code sin estar frente a la Mac. Hooks en `.claude/settings.local.json`
 del proyecto (local, no se versiona), todos con `cd <este repo> && .venv/bin/python -m mac.claude_puente <modo>`:
 
 | Hook | Modo | Qué hace |
 |---|---|---|
-| `Stop` (`"async": true, "asyncRewake": true`, timeout ~1900) | `stop` | Te avisa con el comienzo de la respuesta y espera hasta 30 min un mensaje tuyo (responder al aviso o «claude: …»). Si llega, Claude sigue trabajando con él |
+| `Stop` (`"async": true, "asyncRewake": true`, timeout ~1900) | `stop` | Si el turno respondía a un mensaje tuyo de Telegram, te manda la respuesta entera (en modo fuera, además, el comienzo de cada respuesta). Luego espera hasta 30 min un mensaje tuyo («claude: …» o respondiendo a un mensaje suyo); si llega, Claude sigue trabajando con él |
 | `PreToolUse`, matcher `AskUserQuestion` (timeout ~330) | `pregunta` | Las preguntas con opciones llegan con botones; tu elección vuelve como respuesta. Sin respuesta en 5 min, sale en la consola |
 | `Notification` (`"async": true`) | `aviso` | Avisa que pide permiso o espera algo |
 
-Solo con el **modo fuera** encendido («avisos claude on»); al volver, «avisos claude off» y todo es normal en la
-consola. Los hooks nunca leen Telegram: lo hace el bot (solo de tu chat) y deja los mensajes en `data/claude/`.
+En el PC siempre ves todo; lo que va a Telegram depende del modo:
+- **A pedido** (por defecto, «avisos claude off»): nada llega solo. «claude: …» le escribe a Claude y solo su
+  respuesta a ese mensaje vuelve a Telegram; «qué haces» muestra lo último. Así no te duplica en el celular lo
+  que ya ves en el PC.
+- **Modo fuera** («avisos claude on»): para cuando no estás frente a la Mac. Avisa cada vez que Claude termina o
+  pide permiso, y sus preguntas con opciones llegan con botones.
+
+Los hooks nunca leen Telegram: lo hace el bot (solo de tu chat) y deja los mensajes en `data/claude/`.
 Para ver la sesión completa o aprobar permisos, el control remoto de Claude Code (`/remote-control`).
 
 ## Decisiones de diseño (y por qué)

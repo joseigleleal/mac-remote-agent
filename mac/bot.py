@@ -22,7 +22,8 @@ AYUDA = """Hola 👋 Soy tu Mac. Puedo:
 · ver qué perfiles de Chrome tienes abiertos: «hola mac, qué perfiles hay»
 · páginas: «abre youtube (en personal)», luego «busca …» dentro de ella; en YouTube «pon el primero»
 · buscar y reproducir en Spotify: «pon bad bunny en spotify» o «en mi perfil personal pon karol g»
-· Claude Code: «qué haces» (/claude); «avisos claude on» = modo fuera: te aviso, me respondes respondiendo al aviso
+· Claude Code: «qué haces» (/claude); «claude: …» le escribe y su respuesta te llega aquí (nada más llega solo);
+  «avisos claude on» = modo fuera: además te aviso cada vez que termina, me respondes respondiendo al aviso
   o con «claude: …», y sus preguntas llegan con botones. «avisos claude off» al volver a la Mac
 · WhatsApp para tu clon: «chats», «exporta <nombre>», «exporta 5» (al azar), «exporta recientes 50», «excluye <nombre>»
 · tu clon: «eco: <mensaje que te mandaron>» (o «eco (Ana): …») y te sugiero cómo responderías tú
@@ -120,8 +121,8 @@ class Bot:
         else:
             return False
         log("mensaje para Claude Code")
-        self.decir(chat, "📨 Se lo paso a Claude." + ("" if claude_puente.fuera() else
-                         " Ojo: el modo fuera está apagado («avisos claude on»), no lo va a recibir."))
+        self.decir(chat, "📨 Se lo paso a Claude; su respuesta te llega aquí. Si está a mitad de algo, lo lee al "
+                         "terminar.")
         return True
 
     def decir(self, chat, texto: str, botones: dict | None = None) -> None:

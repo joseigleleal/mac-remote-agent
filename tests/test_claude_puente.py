@@ -24,7 +24,7 @@ class Puente(unittest.TestCase):
         tmp = Path(tempfile.mkdtemp())
         parches = [mock.patch.dict(os.environ, {"TELEGRAM_CHAT_ID": "111"}), mock.patch.object(bot, "log"),
                    mock.patch.object(cp, "APAGADO", tmp / "off")]
-        for nombre in ("CARPETA", "BUZON", "RESPUESTAS", "ALERTAS", "PREGUNTAS", "TURNO"):
+        for nombre in ("CARPETA", "BUZON", "RESPUESTAS", "ALERTAS", "PREGUNTAS", "TURNO", "RESPONDER"):
             ruta = tmp / getattr(cp, nombre).relative_to(cp.DATA_DIR)
             parches.append(mock.patch.object(cp, nombre, ruta))
         parches += [mock.patch.object(cp, "ESPERA_STOP", 10), mock.patch.object(cp, "ESPERA_PREGUNTA", 10),
@@ -47,9 +47,22 @@ class Puente(unittest.TestCase):
         self.assertIn("sigue con la VM", err.getvalue())
         self.assertTrue(cp.es_alerta(500))  # responder a ese aviso cuenta como mensaje para Claude
 
-    def test_en_la_mac_no_espera_ni_avisa(self):
-        cp.APAGADO.write_text("off")
-        cp.hook_stop({})
+    def test_a_pedido_no_avisa_solo_pero_responde_lo_que_preguntas(self):
+        cp.APAGADO.write_text("off")  # modo a pedido: en el PC se ve todo, a Telegram no va nada solo
+        transcript = Path(tempfile.mkdtemp()) / "t.jsonl"
+        transcript.write_text(json.dumps({"type": "assistant", "message": {"content": [
+            {"type": "text", "text": "Cita sigue pausada."}]}}) + "\n")
+        self.despues(lambda: cp.dejar_mensaje("¿cómo va cita?"))
+        with redirect_stderr(io.StringIO()) as err, self.assertRaises(SystemExit):
+            cp.hook_stop({"transcript_path": str(transcript)})  # terminó un turno normal: no avisa, pero escucha
+        self.enviar.assert_not_called()
+        self.assertIn("¿cómo va cita?", err.getvalue())
+        with mock.patch.object(cp, "ESPERA_STOP", 0):
+            cp.hook_stop({"transcript_path": str(transcript)})  # el turno que respondía a Telegram: vuelve allá
+        self.assertIn("Cita sigue pausada.", self.enviar.call_args[0][1])
+        self.enviar.reset_mock()
+        with mock.patch.object(cp, "ESPERA_STOP", 0):
+            cp.hook_stop({"transcript_path": str(transcript)})  # el siguiente turno, de nuevo nada
         self.enviar.assert_not_called()
 
     def test_pregunta_con_botones_devuelve_la_opcion(self):
