@@ -54,4 +54,9 @@ def recursos() -> str:
         f"Mac: carga {carga:.1f} con {nucleos} núcleos · RAM libre {libre.group(1) if libre else '?'} % "
         f"de {ram_mac / 1024 ** 3:.0f} GB",
     ]
+    from mac import agente  # aquí: agente no depende de servicio, pero así el estado no exige Ollama
+    if agente.modelo():
+        cargado = agente.cargado()
+        lineas.append(f"Agente ({agente.modelo()}): en memoria ahora: {cargado}" if cargado is not None
+                      else f"Agente ({agente.modelo()}): Ollama no responde")
     return "\n".join(lineas)

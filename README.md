@@ -2,18 +2,19 @@
 
 Un agente que maneja tu Mac a distancia desde Telegram. Le escribes «hola mac, en mi perfil personal pon bad bunny
 en spotify» (el saludo es opcional) y lo hace en tu Chrome, con tus sesiones ya iniciadas y en la pestaña que ya
-tenías abierta. También ve qué apps tienes abiertas y qué consume más, cierra apps, cambia el volumen y corre
+tenías abierta. Lo que dices con otras palabras, o varias cosas a la vez («pon algo de salsa y déjalo bajito»), lo
+resuelve un modelo local que decide qué acciones usar y en qué orden. También ve qué apps tienes abiertas y qué consume más, cierra apps, cambia el volumen y corre
 comandos de una lista que tú defines. Los comandos también aparecen en el menú «/» de Telegram.
 
 > Antes de usarlo o adaptarlo, lee [Uso responsable](USO_RESPONSABLE.md): quien controla el bot controla la Mac.
 
 | | |
 |---|---|
-| Tipo | Bot siempre encendido (long polling) con acciones de una lista cerrada; reglas en español, sin modelo de lenguaje |
+| Tipo | Agente siempre encendido (long polling) con acciones de una lista cerrada: reglas en español para lo conocido y un modelo local (Ollama, `qwen3:8b`) con llamada a herramientas para el resto |
 | Frecuencia | Responde al instante mientras la Mac esté despierta |
 | Entradas | Mensajes y botones de Telegram (solo de los chats autorizados) · Chrome (perfiles, ventanas y pestañas) |
 | Salidas | Acciones en Chrome · respuestas por Telegram · `data/bot.log` |
-| Consumo | ~20-30 MB de RAM y 0 % de CPU mientras espera (una conexión a Telegram que se renueva cada 50 s); algo de CPU solo los segundos en que atiende un pedido |
+| Consumo | ~20-30 MB de RAM y 0 % de CPU mientras espera (una conexión a Telegram que se renueva cada 50 s). Cuando usa el modelo: ~5 GB de RAM y la GPU unos segundos; se descarga de la memoria al minuto sin uso |
 
 **Qué sabe hacer hoy**
 
@@ -44,11 +45,17 @@ comandos de una lista que tú defines. Los comandos también aparecen en el men�
 
 El «hola mac» es opcional: «pon bad bunny en spotify» funciona igual.
 
+| Pedido libre | Qué hace |
+|---|---|
+| Cualquier frase que ninguna regla entiende, o varios pedidos juntos: «ponme algo de salsa y déjalo bajito, como a 20», «qué está consumiendo más? si es pycharm ciérralo», «abre youtube y pon el primero de lofi», «cómo le contesto a Ana que me dijo ¿vienes mañana?» | El modelo local elige las acciones (las mismas de esta tabla), las ejecuta una tras otra mirando cada resultado y se detiene si alguna pide confirmación con botones. Recuerda los últimos intercambios de 30 min («y ahora súbele») |
+
 ## Flujo
 
 ```
 Telegram ──▶ bot.py (long polling) ──▶ ¿chat autorizado? no → se ignora
                                    └─▶ interprete.py: texto → acción de la lista (perfiles · volumen · spotify · ayuda)
+                                          └─▶ ¿ninguna regla lo entendió? → agente.py: el modelo pide acciones de la
+                                              lista una tras otra (resultado → siguiente) hasta terminar o pedir botones
                                           └─▶ ¿qué perfil? dicho en el texto · único abierto · si no, botones
                                                  └─▶ chrome.py: ventana del perfil → pestaña de Spotify
                                                         ├─ existe → spotify.py cambia a la búsqueda (sin recargar)
@@ -65,6 +72,11 @@ lista). Después lee el pedido buscando palabras conocidas: si habla de perfiles
 saca qué buscar y en qué perfil. Nunca ejecuta lo que escribes como si fuera un comando: solo elige entre las
 acciones que sabe hacer.
 
+Si ninguna regla entiende el pedido, se lo pasa a un modelo de lenguaje que corre en la Mac. El modelo no puede
+hacer nada por su cuenta: solo puede pedir las mismas acciones de la lista, y el bot las ejecuta con los mismos
+controles. Así, «pon algo de salsa y déjalo bajito» se vuelve dos acciones (Spotify y volumen), y si una necesita
+tu confirmación, se detiene ahí.
+
 Para tocar Chrome usa AppleScript, la forma que tiene macOS de controlar apps. Con eso ve tus ventanas y pestañas
 y puede ejecutar código en una página, como hacer clic en «play». El truco está en saber qué ventana es de qué
 perfil: Chrome no lo dice, pero cada perfil guarda en un archivo las pestañas que tiene abiertas, así que el bot
@@ -78,6 +90,7 @@ compara y deduce de quién es cada ventana.
 |---|---|---|
 | `mac/bot.py` | Bucle de long polling, autorización, pregunta del perfil con botones y respuesta | `Bot.atender`, `Bot.spotify`, `Bot.boton`, `quien` |
 | `mac/interprete.py` | Texto → `Pedido(accion, datos)` con reglas (sin tildes, quita «hola mac», el perfil y el «dale play») | `interpretar`, `consulta_musica` |
+| `mac/agente.py` | Lo que ninguna regla entiende: ciclo con el modelo de Ollama y herramientas (cada una es una acción de la lista cerrada), memoria corta, sin resumen inventado al final | `atender`, `HERRAMIENTAS`, `ACCION`, `pedido`, `Memoria`, `cargado` |
 | `mac/chrome.py` | Perfiles, perfiles abiertos, ventana de cada perfil, buscar pestaña, ejecutar JavaScript, abrir URL en un perfil | `perfiles`, `abiertos`, `resolver`, `ventanas`, `asignar_perfiles`, `buscar_pestana`, `ejecutar_js`, `abrir` |
 | `mac/spotify.py` | Búsqueda y play en la web de Spotify, y los botones de la barra (play/pausa, siguiente, anterior) | `reproducir`, `controlar`, `sonando` |
 | `mac/volumen.py` | Volumen y silencio de la Mac por AppleScript (`set volume`) | `estado`, `ajustar` |
@@ -159,8 +172,15 @@ Para ver la sesión completa o aprobar permisos, el control remoto de Claude Cod
   audio; una pestaña nueva abierta por un programa a veces no.
 - **Perfil por archivo de sesión:** AppleScript no expone el perfil de una ventana. Leer el título por
   Accesibilidad exige otro permiso y depende del idioma; el archivo de sesión ya está ahí y solo se lee.
-- **Reglas antes que un modelo:** para pocas acciones, unas reglas son instantáneas, gratis, sin red y se
-  prueban. Un modelo tiene sentido cuando las acciones crezcan.
+- **Reglas primero, modelo después:** lo conocido lo resuelven reglas instantáneas, gratis y probadas; el modelo
+  solo entra cuando ninguna entiende el pedido o hay varios pasos.
+- **El modelo elige, el bot ejecuta:** cada herramienta del modelo es una acción de la lista cerrada; no hay una
+  herramienta para ejecutar texto libre ni para apagar el bot. Si el modelo pone un perfil que no dijiste, se
+  descarta (y el bot pregunta con botones). Si usó herramientas, no se manda su resumen final: los resultados
+  ya te llegaron y un resumen solo agrega la chance de inventar («la factura está en tu bandeja»).
+- **Modelo local:** `qwen3:8b` en Ollama sabe llamar herramientas, entiende bien el español y nada sale de la Mac.
+  Se descarga de la memoria a 1 min sin uso (`AGENTE_KEEP_ALIVE`): en espera no ocupa RAM; a cambio, el primer
+  pedido tras un rato tarda ~35 s en cargarlo (después, 5-15 s).
 - **El último mensaje atendido se guarda en disco** (`data/offset`) antes de actuar: si una acción tumba el bot
   (apagar) o launchd lo reinicia, al volver no repite el mismo mensaje ni el mismo botón.
 - **Long polling y no webhook:** no hace falta abrir puertos ni un servidor público; la Mac pregunta a Telegram.
@@ -214,7 +234,9 @@ Para ver la sesión completa o aprobar permisos, el control remoto de Claude Cod
 - Solo macOS y Chrome (o derivados de Chromium), y la Mac tiene que estar despierta con la sesión abierta.
 - Si Spotify cambia su web, los selectores de `spotify.py` pueden dejar de funcionar.
 - Una pestaña abierta recién por el bot puede no reproducir hasta que la toques una vez (política de audio de Chrome).
-- Las reglas entienden frases parecidas a los ejemplos; una frase muy distinta cae en la ayuda.
+- Las reglas entienden frases parecidas a los ejemplos; una frase muy distinta va al modelo, que es más lento y se
+  puede equivocar de acción (las delicadas igual piden confirmación). Sin Ollama, cae en la ayuda.
+- Un modelo de 8B necesita ~5 GB de RAM libres mientras responde; con 8 GB de RAM en total conviene `qwen3:4b`.
 - El perfil de una ventana se deduce de su archivo de sesión: una ventana recién abierta puede tardar unos
   segundos en reconocerse.
 

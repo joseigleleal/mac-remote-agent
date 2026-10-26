@@ -11,10 +11,12 @@ import argparse
 import time
 from datetime import datetime
 
-from mac import (apps, chrome, claude_aviso, claude_puente, comandos, eco, login, servicio, spotify, telegram, volumen,
-                 web, whatsapp)
+import requests
+
+from mac import (agente, apps, chrome, claude_aviso, claude_puente, comandos, eco, login, servicio, spotify, telegram,
+                 volumen, web, whatsapp)
 from mac.config import DATA_DIR, lista
-from mac.interprete import Pedido, interpretar
+from mac.interprete import Pedido, interpretar, normalizar, quitar_saludo
 
 AYUDA = """Hola 👋 Soy tu Mac. Puedo:
 · ver qué perfiles de Chrome tienes abiertos: «hola mac, qué perfiles hay»
@@ -32,7 +34,9 @@ AYUDA = """Hola 👋 Soy tu Mac. Puedo:
 · apps: «qué apps tengo abiertas», «qué está consumiendo más» (/consumo), «cierra pycharm» (te pregunto antes
   y después vuelvo a medir)
 · el bot: «cuánto consumes» (/estado), «pausa» y «prende» (/pausar, /reanudar), «apágate del todo» (/apagar)
-El «hola mac» es opcional. Si no me dices el perfil, te pregunto con botones."""
+El «hola mac» es opcional. Si no me dices el perfil, te pregunto con botones.
+Si lo dices de otra forma o pides varias cosas a la vez («pon algo de salsa y baja el volumen a 20»), lo
+resuelve un modelo local con estas mismas acciones."""
 
 EN_PAUSA = ("estado", "reanudar", "apagar", "ayuda", "claude", "avisos")  # lo único que atiende en pausa
 OFFSET = DATA_DIR / "offset"  # último update atendido: un reinicio nunca repite un mensaje ni un botón (ej. apagar)
@@ -60,6 +64,12 @@ def log(texto: str) -> None:
     print(f"{datetime.now():%Y-%m-%d %H:%M:%S} {texto}", flush=True)
 
 
+def pide_ayuda(texto: str) -> bool:
+    """Pidió la ayuda a propósito (no es un pedido que ninguna regla entendió)."""
+    t = normalizar(quitar_saludo(texto))
+    return t in ("", "ayuda", "/ayuda", "/start", "que sabes hacer", "que puedes hacer") or t.startswith("/help")
+
+
 def autorizado(chat_id) -> bool:
     return str(chat_id) in lista("TELEGRAM_CHAT_ID")
 
@@ -72,6 +82,9 @@ class Bot:
             self.offset = None
         self.pendiente: dict[str, Pedido] = {}  # chat → pedido que espera que se elija el perfil
         self.ctx: web.Contexto | None = None    # la pestaña con la que se está conversando («busca…» va ahí)
+        self.memoria = agente.Memoria()          # últimos intercambios, para que el agente entienda «y ahora…»
+        self.captura: list[str] | None = None    # mientras el agente usa una herramienta: lo que respondió
+        self.con_botones = False                 # …y si preguntó con botones
 
     def atender(self, update: dict) -> None:
         self.offset = update["update_id"] + 1
@@ -113,6 +126,9 @@ class Bot:
 
     def decir(self, chat, texto: str, botones: dict | None = None) -> None:
         log(f"respuesta: {texto[:200]}")
+        if self.captura is not None:
+            self.captura.append(texto)
+            self.con_botones = self.con_botones or bool(botones)
         telegram.enviar(chat, texto, botones)
 
     def mensaje(self, chat, texto: str) -> None:
@@ -120,7 +136,37 @@ class Bot:
         log(f"pedido: «{texto[:200]}» → {pedido.accion} {pedido.datos}")
         if servicio.pausado() and pedido.accion not in EN_PAUSA:
             self.decir(chat, "⏸️ Estoy en pausa. Dime «prende» para volver.")
-        elif pedido.accion == "abrir":
+        elif pedido.accion == "ayuda" and not pide_ayuda(texto) and agente.modelo():
+            self.con_agente(chat, texto)  # ninguna regla lo entendió: decide el modelo con las mismas acciones
+        else:
+            self.memoria.agregar("user", texto)
+            self.memoria.agregar("assistant", f"[{pedido.accion}] {pedido.datos}")
+            self.ejecutar(chat, pedido, texto)
+
+    def con_agente(self, chat, texto: str) -> None:
+        def usar(p: Pedido) -> tuple[str, bool]:
+            log(f"agente → {p.accion} {p.datos}")
+            self.captura, self.con_botones = [], False
+            try:
+                self.ejecutar(chat, p, p.datos.get("perfil", ""))
+            except Exception as e:  # noqa: BLE001 - el error vuelve al modelo como resultado
+                self.captura.append(f"⚠️ {type(e).__name__}: {e}")
+            salida, botones = "\n".join(self.captura), self.con_botones
+            self.captura = None
+            return salida[-1500:], botones
+        telegram.enviar(chat, "🤖 No es un pedido fijo: lo resuelvo con el modelo local…")
+        try:
+            final = agente.atender(texto, usar, self.memoria)
+        except requests.RequestException as e:
+            log(f"agente sin modelo: {e}")
+            self.decir(chat, "No entendí el pedido y el modelo local no responde (¿Ollama apagado?).\n\n" + AYUDA)
+            return
+        if final:
+            self.decir(chat, "🤖 " + final)
+
+    def ejecutar(self, chat, pedido: Pedido, texto: str) -> None:
+        """Hace una acción de la lista cerrada (la entendió una regla o la pidió el agente)."""
+        if pedido.accion == "abrir":
             self.abrir(chat, pedido, self.perfil_pedido(pedido, texto))
         elif pedido.accion == "buscar":
             if self.ctx and self.ctx.vigente() and self.ctx.sitio != "spotify":
@@ -146,7 +192,7 @@ class Bot:
                 self.decir(chat, f"⚠️ {e}")
         elif pedido.accion == "eco":
             telegram.enviar(chat, "✍️ Pensando cómo lo dirías…")
-            self.decir(chat, eco.sugerir(pedido.datos["mensaje"], pedido.datos["chat"]))
+            self.decir(chat, eco.sugerir(pedido.datos.get("mensaje", ""), pedido.datos.get("chat", "")))
         elif pedido.accion == "claude":
             self.decir(chat, claude_puente.que_haces())
         elif pedido.accion == "avisos":

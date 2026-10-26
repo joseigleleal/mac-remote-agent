@@ -35,6 +35,9 @@ controla lo que esa Mac puede hacer. Antes de usarlo o adaptarlo, lee estas regl
   pon el nuevo en `.env`.
 - **Solo acciones de una lista cerrada.** El texto que llega por Telegram nunca se ejecuta como comando: se
   interpreta y se elige una acción conocida. Al agregar acciones, mantén esa regla.
+- **El modelo no amplía lo que el bot puede hacer.** Lo que ninguna regla entiende lo decide un modelo local, pero
+  solo puede pedir acciones de la misma lista, con los mismos controles. Un modelo se puede equivocar o ser engañado
+  por un texto: por eso no tiene herramientas para ejecutar texto libre ni para nada irreversible sin confirmación.
 - **Perfiles permitidos.** Con `CHROME_PERFILES_PERMITIDOS` deja fuera los perfiles que el bot no debe tocar
   (por ejemplo, el del trabajo).
 - **Mac con contraseña y bloqueo de pantalla.** El bot actúa con tu sesión abierta.
