@@ -64,6 +64,9 @@ def agregar(texto: str, hay_modelo: bool) -> str:
         return f"No entiendo «{rutina['texto']}» como pedido, así que no lo programo. Escríbelo como me lo pedirías."
     rutinas = leer()
     rutina["id"] = max((r["id"] for r in rutinas), default=0) + 1
+    ahora = datetime.now()
+    if rutina["hora"] < f"{ahora:%H:%M}":  # su hora ya pasó hoy: empieza mañana (no corre al crearla)
+        rutina["ultima"] = ahora.date().isoformat()
     rutinas.append(rutina)
     guardar(rutinas)
     return f"⏰ Rutina {rutina['id']}: {DIAS[rutina['dias']]} a las {rutina['hora']} haré «{rutina['texto']}»."

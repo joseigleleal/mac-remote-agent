@@ -114,6 +114,13 @@ class Rutinas(Temporal):
         self.assertEqual(rutinas.pendientes(datetime(2026, 10, 27, 9, 30)), [])       # Mac dormida: muy tarde
         self.assertEqual(len(rutinas.pendientes(datetime(2026, 10, 28, 8, 40))), 1)   # al despertar, a tiempo
 
+    def test_creada_despues_de_su_hora_empieza_manana(self):
+        with mock.patch.object(rutinas, "datetime", wraps=datetime) as dt:
+            dt.now.return_value = datetime(2026, 10, 26, 9, 6)
+            rutinas.agregar("rutina 9:00 chequeo", True)
+        self.assertEqual(rutinas.pendientes(datetime(2026, 10, 26, 9, 7)), [])
+        self.assertEqual(len(rutinas.pendientes(datetime(2026, 10, 27, 9, 0))), 1)
+
     def test_frases(self):
         self.assertEqual(interpretar("rutinas").accion, "rutinas")
         self.assertEqual(interpretar("borra la rutina 2").datos, {"numero": 2})
