@@ -6,12 +6,14 @@ tenías abierta. Lo que dices con otras palabras, o varias cosas a la vez («pon
 resuelve un modelo local que decide qué acciones usar y en qué orden. También ve qué apps tienes abiertas y qué consume más, cierra apps, cambia el volumen y corre
 comandos de una lista que tú defines. Los comandos también aparecen en el menú «/» de Telegram.
 
+Además actúa por su cuenta en dos casos: **rutinas** (pedidos que le dejas programados, como «rutina lunes a viernes 8:00 qué está consumiendo más») y un **chequeo** cada 30 min de lo que necesita para funcionar (Ollama, permisos de macOS, eco, disco, sesiones vencidas). Si algo se rompe te avisa una vez y, si el arreglo es conocido y seguro, lo aplica solo.
+
 > Antes de usarlo o adaptarlo, lee [Uso responsable](USO_RESPONSABLE.md): quien controla el bot controla la Mac.
 
 | | |
 |---|---|
 | Tipo | Agente siempre encendido (long polling) con acciones de una lista cerrada: reglas en español para lo conocido y un modelo local (Ollama, `qwen3:8b`) con llamada a herramientas para el resto |
-| Frecuencia | Responde al instante mientras la Mac esté despierta |
+| Frecuencia | Responde al instante mientras la Mac esté despierta · chequeo propio cada `CHEQUEO_MIN` (30) min · rutinas a su hora |
 | Entradas | Mensajes y botones de Telegram (solo de los chats autorizados) · Chrome (perfiles, ventanas y pestañas) |
 | Salidas | Acciones en Chrome · respuestas por Telegram · `data/bot.log` |
 | Consumo | ~20-30 MB de RAM y 0 % de CPU mientras espera (una conexión a Telegram que se renueva cada 50 s). Cuando usa el modelo: ~5 GB de RAM y la GPU unos segundos; se descarga de la memoria al minuto sin uso |
@@ -26,6 +28,8 @@ comandos de una lista que tú defines. Los comandos también aparecen en el men�
 | «reautentica <sitio>» · «inicia sesión en <sitio>» · `/login <sitio>` | Si una pestaña del perfil quedó en la página de login (sesión vencida), rellena usuario (si está vacío) y clave del `.env` y continúa, paso a paso (confirmar cuenta → clave). Si queda en un segundo factor o captcha, avisa y no lo salta |
 | «chats» · «exporta <nombre>» · «exporta 5» · «exporta recientes 50» · «excluye <nombre>» | WhatsApp de la Mac para entrenar tu «clon»: lista tus chats uno a uno con más mensajes tuyos y exporta **solo tus mensajes** (con el mensaje anterior del otro como contexto, sin teléfonos, correos ni enlaces) a `data/whatsapp/`: uno por nombre, varios al azar o los primeros de la lista de la app (los más recientes). Sin grupos; los excluidos nunca se exportan. Si macOS no da el permiso en 20 s, avisa cuál falta en vez de colgarse |
 | «eco: <mensaje que te mandaron>» · «eco (Ana): …» · `/eco …` | Te sugiere cómo responderías tú, con tu forma de escribir aprendida de esos chats. Lo hace el agente `eco` de [personal-agents](https://github.com/joseigleleal/ai-personal-agents) (todo local, con Ollama); aquí solo se llama (`ECO_DIR`). Nunca envía nada |
+| «rutina 8:00 qué está consumiendo más» · «rutina lunes a viernes 7:30 pon lofi en spotify» · «rutina fines de semana 10 chequeo» · «rutinas» · «borra rutina 2» · `/rutinas` | Programa un pedido para que lo haga solo cada día (o de lunes a viernes, o sábados y domingos) a esa hora. A su hora lo atiende como si se lo acabaras de escribir: mismas reglas, mismo agente y mismos controles. No acepta rutinas que apaguen o pausen el bot. Si la Mac dormía, corre al despertar si no pasó más de 1 h |
+| «chequeo» · «revisa la mac» · `/chequeo` | Revisa Ollama, el permiso de Accesibilidad, la lectura de WhatsApp, eco, el disco libre y si alguna sesión de `LOGIN_SITIOS` venció. Lo mismo hace solo cada 30 min (ver «Chequeo y reparación» abajo) |
 | «qué haces» · «qué dijiste» · `/claude` | Última acción y último mensaje de la sesión de Claude Code (lee el transcript) |
 | «claude: …» · «avisos claude on / off» · `/avisos_claude` | Claude Code desde Telegram: a pedido (solo te llega la respuesta a lo que le escribes) o modo fuera (avisos de todo y preguntas con botones). Ver abajo |
 | «abre youtube (en personal)» · «busca youtube» · `/abre …` | Abre la página (por nombre conocido, dirección o, si no, búsqueda en Google) en ese perfil; sin perfil, pregunta con botones. Reutiliza la pestaña si ya existe y queda como **la pestaña de la conversación** |
@@ -61,6 +65,12 @@ Telegram ──▶ bot.py (long polling) ──▶ ¿chat autorizado? no → se 
                                                         ├─ existe → spotify.py cambia a la búsqueda (sin recargar)
                                                         └─ no     → la abre en ese perfil
                                                      → clic en ▶ del primer resultado → ¿suena? → respuesta
+
+Entre esperas a Telegram (como mucho cada ~50 s), por iniciativa propia y nunca en pausa:
+   ├─ ¿pasaron CHEQUEO_MIN min? → chequeo.py: revisa → problema nuevo: ¿arreglo conocido? → lo intenta una vez
+   │                                                   └─ si no: aviso (con botón si basta un toque, ej. iniciar sesión)
+   │                              → problema que ya no está: «✅ resuelto»
+   └─ ¿alguna rutina toca ahora? → su texto entra por el mismo camino que un mensaje tuyo (reglas → agente)
 ```
 
 ## Cómo funciona por dentro
@@ -88,7 +98,7 @@ compara y deduce de quién es cada ventana.
 
 | Archivo | Qué hace | Funciones clave |
 |---|---|---|
-| `mac/bot.py` | Bucle de long polling, autorización, pregunta del perfil con botones y respuesta | `Bot.atender`, `Bot.spotify`, `Bot.boton`, `quien` |
+| `mac/bot.py` | Bucle de long polling, autorización, pregunta del perfil con botones y respuesta; entre esperas, el chequeo y las rutinas | `Bot.atender`, `Bot.spotify`, `Bot.boton`, `Bot.por_iniciativa`, `quien` |
 | `mac/interprete.py` | Texto → `Pedido(accion, datos)` con reglas (sin tildes, quita «hola mac», el perfil y el «dale play») | `interpretar`, `consulta_musica` |
 | `mac/agente.py` | Lo que ninguna regla entiende: ciclo con el modelo de Ollama y herramientas (cada una es una acción de la lista cerrada), memoria corta, sin resumen inventado al final | `atender`, `HERRAMIENTAS`, `ACCION`, `pedido`, `Memoria`, `cargado` |
 | `mac/chrome.py` | Perfiles, perfiles abiertos, ventana de cada perfil, buscar pestaña, ejecutar JavaScript, abrir URL en un perfil | `perfiles`, `abiertos`, `resolver`, `ventanas`, `asignar_perfiles`, `buscar_pestana`, `ejecutar_js`, `abrir` |
@@ -103,6 +113,8 @@ compara y deduce de quién es cada ventana.
 | `mac/claude_aviso.py` | Hook de Claude Code (eventos `Stop` y `Notification`): manda por Telegram el comienzo de la última respuesta o el aviso de que necesita permiso o una respuesta | `texto_aviso`, `ultima_respuesta` |
 | `mac/web.py` | Sitios conocidos y sus búsquedas, abrir en un perfil (reutiliza la pestaña), buscar en la página (plantilla o buscador visible), primer video de YouTube | `abrir`, `buscar`, `primero`, `Contexto` |
 | `mac/terminal.py` | Escribe un comando en una terminal visible: IDE de JetBrains con teclado simulado (Esc → ⌥F12 → ⌘T → comando → Enter) o iTerm por su AppleScript | `escribir` |
+| `mac/chequeo.py` | Revisiones de la Mac (solo lo configurado), aviso una vez por problema y «resuelto» al desaparecer (estado en `data/chequeo.json`), arreglo automático de una lista cerrada (hoy: prender Ollama) una sola vez por problema | `revisar`, `vuelta`, `informe`, `toca`, `prender_ollama` |
+| `mac/rutinas.py` | Rutinas en `data/rutinas.json`: entender «rutina <días> <hora> <pedido>», rechazar las prohibidas, decir cuáles tocan ahora (y marcarlas para no repetirlas) | `entender`, `agregar`, `pendientes`, `resumen`, `borrar` |
 | `mac/servicio.py` | Consumo (`ps`, `memory_pressure`), pausa (archivo `data/pausado`) y apagado total (`launchctl disable` + `bootout`) | `recursos`, `pausar`, `reanudar`, `apagar` |
 | `scripts/bot.sh` | Prender, apagar, reiniciar, estado y log desde la Mac | `prender`, `apagar`, `reiniciar`, `estado`, `log` |
 | `mac/telegram.py` | Cliente mínimo de la API de bots | `actualizaciones`, `enviar`, `editar`, `teclado` |
@@ -170,6 +182,25 @@ En el PC siempre ves todo; lo que va a Telegram depende del modo:
 Los hooks nunca leen Telegram: lo hace el bot (solo de tu chat) y deja los mensajes en `data/claude/`.
 Para ver la sesión completa o aprobar permisos, el control remoto de Claude Code (`/remote-control`).
 
+### Chequeo y reparación
+
+El bot es lo único que vigila la Mac (los servidores los vigila el agente `vigia` de
+[personal-agents](https://github.com/joseigleleal/ai-personal-agents)). Cada `CHEQUEO_MIN` minutos revisa solo lo
+que tienes configurado:
+
+| Revisión | Cuándo aplica | Si falla |
+|---|---|---|
+| Ollama responde | `AGENTE_MODELO` con valor | **Lo prende solo** (app de Ollama o `brew services start ollama`), una vez; si no vuelve, avisa |
+| Permiso de Accesibilidad | Siempre | Avisa con la ruta exacta de Python.app que hay que agregar (cambia si Homebrew actualiza Python) |
+| Lectura de WhatsApp | Si ya exportaste chats (`data/whatsapp/`) | Avisa que falta «Acceso total al disco» (o un aviso de macOS pendiente) |
+| eco | `ECO_DIR` con valor | Avisa si no está su Python o no puede leer su carpeta |
+| Disco libre | Siempre | Avisa bajo `CHEQUEO_DISCO_MIN_GB` (10). Nunca borra nada |
+| Sesiones vencidas | `LOGIN_SITIOS` con valor y Chrome abierto | Avisa con un botón «🔑 Iniciar sesión»: no entra solo, porque un login fallido repetido puede bloquear la cuenta |
+
+Cada problema se avisa **una vez** (no en cada vuelta) y, cuando desaparece, llega «✅ resuelto». El arreglo
+automático se intenta **una sola vez por problema**: si no funciona, avisa y espera a que lo resuelvas. Para probarlo
+sin avisar ni reparar: `.venv/bin/python -m mac.chequeo`.
+
 ## Decisiones de diseño (y por qué)
 
 - **Lista cerrada de acciones:** un bot que ejecuta lo que le escriben es una puerta a la Mac para quien consiga
@@ -194,6 +225,14 @@ Para ver la sesión completa o aprobar permisos, el control remoto de Claude Cod
   corre lo que está tal cual en `COMANDOS_PERMITIDOS`, con `shlex.split` y sin shell (no hay `|`, `;` ni `&&` que
   colar). Por defecto corre en segundo plano (no depende de que el IDE esté abierto); en una terminal visible solo si
   se pide, y siempre en una pestaña nueva, porque no hay forma confiable de saber qué terminal está libre.
+- **Autonomía con la misma lista cerrada:** las rutinas no son acciones nuevas, son pedidos tuyos con hora; pasan por
+  el mismo camino que un mensaje, así que no pueden hacer nada que no podrías pedir tú (y no pueden apagar ni pausar
+  el bot). El chequeo solo repara lo que tiene un arreglo conocido, inofensivo y reversible (prender Ollama); lo que
+  depende de ti (permisos, borrar archivos, iniciar sesión) lo avisa con los pasos o un botón.
+- **Avisar una vez, reparar una vez:** un aviso que se repite cada 30 min se termina ignorando, y una reparación que
+  se reintenta en bucle puede empeorar las cosas. Por eso el estado de cada problema se guarda en disco.
+- **El chequeo vive en el bot, no en otro servicio:** el bot ya está despierto y escuchando; mirar el reloj entre
+  esperas a Telegram no cuesta nada y evita otro proceso de launchd.
 - **Login con datos del `.env`, con cuidado:** la clave queda en texto plano (el `.env` con permisos 600). Nunca va a
   Telegram ni al log, ni como argumento de un proceso (se vería con `ps`): viaja a Chrome dentro del script que
   `osascript` lee por la entrada estándar. Si un intento falla, no reintenta: varios fallos pueden bloquear la cuenta.

@@ -4,7 +4,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 
-ACCIONES = ("eco", "abrir", "buscar", "primero", "wa_chats", "wa_exporta", "wa_excluye", "claude", "avisos", "login", "musica", "estado", "pausar", "reanudar", "apagar", "comando", "detener", "comandos", "apps", "consumo", "cerrar",
+ACCIONES = ("eco", "chequeo", "rutina", "rutinas", "borra_rutina", "abrir", "buscar", "primero", "wa_chats", "wa_exporta", "wa_excluye", "claude", "avisos", "login", "musica", "estado", "pausar", "reanudar", "apagar", "comando", "detener", "comandos", "apps", "consumo", "cerrar",
             "perfiles", "volumen", "spotify", "ayuda")
 
 VERBOS_MUSICA = r"\b(busca\w*|busque\w*|pon|ponme|ponle|pongas|reproduc\w*|toca|tocame|escuch\w*|play)\b"
@@ -177,6 +177,16 @@ def interpretar(texto: str) -> Pedido:
     m = re.match(r"^/?eco\b(?:\s*\(([^)]*)\))?\s*[:,]?\s*(.+)$", original, re.I | re.S)
     if m:  # el mensaje va tal cual (con tildes y mayúsculas): es lo que te escribieron
         return Pedido("eco", {"mensaje": m.group(2).strip(), "chat": (m.group(1) or "").strip()})
+    if t in ("rutinas", "/rutinas", "/rutina", "rutina", "mis rutinas", "que rutinas hay", "que rutinas tengo"):
+        return Pedido("rutinas")
+    m = re.match(r"^(?:borra\w*|quita\w*|elimina\w*)\s+(?:la\s+)?rutina\s+(\d+)$", t)
+    if m:
+        return Pedido("borra_rutina", {"numero": int(m.group(1))})
+    if re.match(r"^/?rutinas?\s+\S", original, re.I):  # se guarda el texto tal cual: es lo que se hará a esa hora
+        return Pedido("rutina", {"texto": original})
+    if t.startswith("/chequeo") or re.search(r"\b(chequeo|chequea\w*|revisate)\b", t) or \
+            re.fullmatch(r"(revisa|como esta) (la|mi) mac", t):
+        return Pedido("chequeo")
     web = pedido_web(t)
     if web:
         return web

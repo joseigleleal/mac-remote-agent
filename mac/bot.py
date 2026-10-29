@@ -13,8 +13,8 @@ from datetime import datetime
 
 import requests
 
-from mac import (agente, apps, chrome, claude_aviso, claude_puente, comandos, eco, login, servicio, spotify, telegram,
-                 volumen, web, whatsapp)
+from mac import (agente, apps, chequeo, chrome, claude_aviso, claude_puente, comandos, eco, login, rutinas, servicio,
+                 spotify, telegram, volumen, web, whatsapp)
 from mac.config import DATA_DIR, lista
 from mac.interprete import Pedido, interpretar, normalizar, quitar_saludo
 
@@ -34,16 +34,23 @@ AYUDA = """Hola 👋 Soy tu Mac. Puedo:
   terminal de pycharm» (también intellij o iterm, para verlo), «detén caffeinate», «qué comandos hay»
 · apps: «qué apps tengo abiertas», «qué está consumiendo más» (/consumo), «cierra pycharm» (te pregunto antes
   y después vuelvo a medir)
+· rutinas (lo hago solo a esa hora): «rutina 8:00 qué está consumiendo más», «rutina lunes a viernes 7:30 pon
+  lofi en spotify», «rutinas», «borra rutina 2»
+· chequeo: «chequeo» (/chequeo) revisa Ollama, permisos de macOS, eco, disco y sesiones; además lo hago solo cada
+  30 min, te aviso una vez si algo se rompe y arreglo lo que tiene arreglo conocido
 · el bot: «cuánto consumes» (/estado), «pausa» y «prende» (/pausar, /reanudar), «apágate del todo» (/apagar)
 El «hola mac» es opcional. Si no me dices el perfil, te pregunto con botones.
 Si lo dices de otra forma o pides varias cosas a la vez («pon algo de salsa y baja el volumen a 20»), lo
 resuelve un modelo local con estas mismas acciones."""
 
-EN_PAUSA = ("estado", "reanudar", "apagar", "ayuda", "claude", "avisos")  # lo único que atiende en pausa
+EN_PAUSA = ("estado", "chequeo", "rutinas", "reanudar", "apagar", "ayuda", "claude", "avisos")  # lo único que atiende en pausa
 OFFSET = DATA_DIR / "offset"  # último update atendido: un reinicio nunca repite un mensaje ni un botón (ej. apagar)
 
 # Menú de Telegram (al escribir «/»). También se le puede hablar con frases: ver AYUDA.
 MENU = [("estado", "Cuánto consume el bot y cómo está la Mac"), ("consumo", "Qué está consumiendo más"),
+        ("chequeo", "Revisar permisos, Ollama, eco, disco y sesiones"),
+        ("rutinas", "Pedidos que hago solo a una hora: /rutina 8:00 consumo"),
+        ("rutina", "Programar un pedido: /rutina 8:00 qué está consumiendo más"),
         ("apps", "Apps abiertas y su consumo"), ("cerrar", "Cerrar una app: /cerrar pycharm"),
         ("abre", "Abrir una página: /abre youtube"),
         ("perfiles", "Perfiles de Chrome abiertos"), ("spotify", "Buscar y reproducir: /spotify bad bunny"),
@@ -196,6 +203,14 @@ class Bot:
             self.decir(chat, eco.sugerir(pedido.datos.get("mensaje", ""), pedido.datos.get("chat", "")))
         elif pedido.accion == "claude":
             self.decir(chat, claude_puente.que_haces())
+        elif pedido.accion == "chequeo":
+            self.decir(chat, *chequeo.informe())
+        elif pedido.accion == "rutina":
+            self.decir(chat, rutinas.agregar(pedido.datos["texto"], bool(agente.modelo())))
+        elif pedido.accion == "rutinas":
+            self.decir(chat, rutinas.resumen())
+        elif pedido.accion == "borra_rutina":
+            self.decir(chat, rutinas.borrar(pedido.datos["numero"]))
         elif pedido.accion == "avisos":
             activar = pedido.datos["activar"]
             if activar is True:
@@ -409,6 +424,25 @@ class Bot:
                     self.atender(u)
                 except Exception as e:  # un pedido que falla no tumba al bot
                     log(f"error atendiendo: {type(e).__name__}: {e}")
+            try:
+                self.por_iniciativa()
+            except Exception as e:  # noqa: BLE001 - ni el chequeo ni una rutina tumban al bot
+                log(f"error en chequeo o rutina: {type(e).__name__}: {e}")
+
+    def por_iniciativa(self) -> None:
+        """Lo que hace sin que se lo pidan (se mira entre esperas a Telegram, como mucho cada ~50 s): el chequeo de
+        la Mac cada CHEQUEO_MIN minutos y las rutinas que tocan ahora. En pausa, nada."""
+        destinos = lista("TELEGRAM_CHAT_ID")
+        if not destinos or servicio.pausado():
+            return
+        chat = destinos[0]
+        if chequeo.toca():
+            log("chequeo automático")
+            chequeo.vuelta(lambda texto, botones: self.decir(chat, texto, botones))
+        for r in rutinas.pendientes():
+            log(f"rutina {r['id']}: «{r['texto']}»")
+            telegram.enviar(chat, f"⏰ Rutina {r['id']} ({r['hora']}): «{r['texto']}»")
+            self.mensaje(chat, r["texto"])
 
 
 def quitar_consulta(texto: str, pedido: Pedido) -> str:

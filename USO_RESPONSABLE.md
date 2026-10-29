@@ -38,6 +38,10 @@ controla lo que esa Mac puede hacer. Antes de usarlo o adaptarlo, lee estas regl
 - **El modelo no amplía lo que el bot puede hacer.** Lo que ninguna regla entiende lo decide un modelo local, pero
   solo puede pedir acciones de la misma lista, con los mismos controles. Un modelo se puede equivocar o ser engañado
   por un texto: por eso no tiene herramientas para ejecutar texto libre ni para nada irreversible sin confirmación.
+- **Lo que hace por su cuenta también está acotado.** Las rutinas son pedidos tuyos con hora: pasan por los
+  mismos controles que un mensaje y no pueden apagar ni pausar el bot. El chequeo solo repara solo lo inofensivo
+  (prender Ollama), una vez; nunca borra archivos ni inicia sesión sin que toques el botón. Revisa de vez en cuando
+  tus rutinas («rutinas»): una rutina olvidada sigue actuando en tu nombre.
 - **Perfiles permitidos.** Con `CHROME_PERFILES_PERMITIDOS` deja fuera los perfiles que el bot no debe tocar
   (por ejemplo, el del trabajo).
 - **Mac con contraseña y bloqueo de pantalla.** El bot actúa con tu sesión abierta.

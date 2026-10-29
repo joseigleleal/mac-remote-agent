@@ -78,6 +78,8 @@ HERRAMIENTAS = [
     _h("sugerir_respuesta", "Sugiere cómo respondería el usuario un mensaje que le mandaron, con su estilo.",
        mensaje=("string", "el mensaje que le mandaron"), chat=("string", "(opcional) quién se lo mandó")),
     _h("chats_whatsapp", "Lista los chats de WhatsApp con más mensajes del usuario."),
+    _h("chequeo_mac", "Revisa que la Mac y el bot estén bien: Ollama, permisos de macOS, eco, disco y sesiones."),
+    _h("ver_rutinas", "Lista las rutinas programadas (pedidos que el bot hace solo a una hora)."),
 ]
 # herramienta → acción de la lista cerrada (y cómo pasan los datos)
 ACCION = {"abrir_pagina": "abrir", "buscar_en_pagina": "buscar", "poner_primero": "primero",
@@ -85,7 +87,7 @@ ACCION = {"abrir_pagina": "abrir", "buscar_en_pagina": "buscar", "poner_primero"
           "consumo": "consumo", "cerrar_app": "cerrar", "perfiles_chrome": "perfiles", "estado_bot": "estado",
           "comandos_permitidos": "comandos", "ejecutar_comando": "comando", "detener_comando": "detener",
           "iniciar_sesion": "login", "que_hace_claude": "claude", "sugerir_respuesta": "eco",
-          "chats_whatsapp": "wa_chats"}
+          "chats_whatsapp": "wa_chats", "chequeo_mac": "chequeo", "ver_rutinas": "rutinas"}
 
 
 def pedido(nombre: str, argumentos: dict, texto: str = "") -> Pedido | None:
